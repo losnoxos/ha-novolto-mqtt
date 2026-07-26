@@ -6,6 +6,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -15,6 +16,7 @@ from .const import (
     DEFAULT_HEATING_THRESHOLD_W,
     DOMAIN,
     FIELD_POWER,
+    FIELD_ROD_STATUS,
 )
 from .entity import NovoltoEntity
 
@@ -22,9 +24,14 @@ from .entity import NovoltoEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    """Set up the Novolto binary sensor from a config entry."""
+    """Set up the Novolto binary sensors from a config entry."""
     device: NovoltoDevice = hass.data[DOMAIN][entry.entry_id]["device"]
-    async_add_entities([NovoltoHeatingBinarySensor(device)])
+    async_add_entities(
+        [
+            NovoltoHeatingBinarySensor(device),
+            NovoltoRodStatusBinarySensor(device),
+        ]
+    )
 
 
 class NovoltoHeatingBinarySensor(NovoltoEntity, BinarySensorEntity):
@@ -54,3 +61,25 @@ class NovoltoHeatingBinarySensor(NovoltoEntity, BinarySensorEntity):
             CONF_HEATING_THRESHOLD_W, DEFAULT_HEATING_THRESHOLD_W
         )
         return power > threshold
+
+
+class NovoltoRodStatusBinarySensor(NovoltoEntity, BinarySensorEntity):
+    """Raw `rod_st` field as a binary sensor - kept for parity/diagnostics.
+
+    Prefer NovoltoHeatingBinarySensor for automations: NOVOLTO-MQTT.md
+    documents `rod_st` getting stuck at 1 at low power levels.
+    """
+
+    _attr_translation_key = "rod_status"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, device: NovoltoDevice) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(device)
+        self._attr_unique_id = f"{device.base_topic}_{FIELD_ROD_STATUS}"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the raw rod_st value as a boolean."""
+        rod_status = self.device.data.get(FIELD_ROD_STATUS)
+        return None if rod_status is None else rod_status > 0

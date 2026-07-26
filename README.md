@@ -16,10 +16,14 @@ and [heatpump-novolto](https://github.com/losnoxos/victronenergy.heatpump.novolt
 - `water_heater` entity: current + target water temperature
 - `number` entities: target power, hysteresis
 - `binary_sensor`: heating right now (derived from measured power, not the
-  `rod_st` field, which proved unreliable at low power levels)
+  `rod_st` field, which proved unreliable at low power levels), plus the
+  raw `rod_st` value as its own diagnostic binary sensor
 - `sensor` entities: voltage, current, frequency, water temperature,
-  decoded status/warning flags - plus an optional board-temperature sensor
-  and diagnostic WiFi/measurement-interval sensors (disabled by default)
+  decoded status/warning flags, a persistent energy counter - plus an
+  optional board-temperature sensor and diagnostic sensors (WiFi signal,
+  measurement interval, raw status/rod-status/triacon/heating-stage
+  values - the last four kept only for parity with the manufacturer's own
+  app/diagnostics, undocumented and not meant for automations)
 - English and German UI translations
 
 ## Requirements
@@ -48,13 +52,12 @@ sensor.
 
 ## Energy tracking
 
-This integration deliberately does **not** ship its own energy counter.
-Add Home Assistant's built-in
-[Riemann sum integral](https://www.home-assistant.io/integrations/integration/)
-helper on the power sensor instead - simpler and more robust than
-reimplementing persistence, and it plugs straight into the Energy
-dashboard. (The device's own `wel` field resets to 0 on every Novolto
-reboot, which is why it isn't used here.)
+The `Energy` sensor is integrated from measured power (`avp`), the same
+approach dbus-novolto uses (`integrate` energy_source), and persisted to
+disk so it survives Home Assistant restarts. It deliberately does **not**
+use the device's own `wel` field, which resets to 0 on every Novolto
+reboot. The sensor uses `state_class: total_increasing`, so it plugs
+straight into the Energy dashboard - no extra Riemann-sum helper needed.
 
 ## Known limitations
 
@@ -62,8 +65,10 @@ reboot, which is why it isn't used here.)
   not yet surfaced as a repair/notification in the UI
 - No MQTT-based auto-discovery during setup - the base topic must be
   entered manually
-- `rod_st`, `triacon`, `r1on`, `r2on` are intentionally not exposed -
-  unreliable or undocumented by the manufacturer
+- `rod_st`, `triacon`, `r1on`, `r2on` are exposed only as raw diagnostic
+  sensors (kept for parity/troubleshooting) - the manufacturer doesn't
+  document them, and `rod_st` in particular is not used for any actual
+  on/off decision (see `Heating` binary sensor)
 
 ## Protocol reference
 

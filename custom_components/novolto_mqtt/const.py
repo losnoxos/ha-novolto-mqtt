@@ -52,6 +52,11 @@ FIELD_RSSI = "rssi"
 FIELD_STATUS = "st"
 FIELD_ENERGY_ESTIMATE = "wel"
 FIELD_ROD_STATUS = "rod_st"
+# "miscellaneous diagnostic data" per Novolto's own docs - not further
+# documented, triacon is a monotonically increasing counter (not a status).
+FIELD_TRIACON = "triacon"
+FIELD_R1ON = "r1on"
+FIELD_R2ON = "r2on"
 
 # Control-command acknowledgements are published on the *same* info topic but
 # only ever carry serial/unix_time/ret/s_err - never any measurement field.
@@ -97,3 +102,11 @@ STATUS_BITS: dict[int, str] = {
 }
 
 SIGNAL_UPDATE = f"{DOMAIN}_update_{{entry_id}}"
+
+# Persisted energy counter (see NovoltoDevice._update_energy in __init__.py) -
+# integrated from avp, like dbus-novolto's `integrate` energy_source, instead
+# of the device's own `wel` (which resets to 0 on every Novolto reboot).
+STORAGE_VERSION = 1
+# How often the accumulated energy value is written to disk - matches the
+# 5-minute cadence dbus-novolto uses for its energy.json.
+ENERGY_SAVE_EVERY_N_TICKS = 10

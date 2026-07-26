@@ -20,6 +20,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -32,8 +33,11 @@ from .const import (
     DEFAULT_TOPIC_CONTROL,
     DEFAULT_TOPIC_INFO,
     DOMAIN,
+    ENERGY_SAVE_EVERY_N_TICKS,
+    FIELD_POWER,
     MEASUREMENT_FIELDS,
     SIGNAL_UPDATE,
+    STORAGE_VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,9 +63,13 @@ class NovoltoDevice:
     base_topic: str
     topic_control: str
     timeout_seconds: int
+    store: Store
     data: dict[str, Any] = field(default_factory=dict)
     last_seen: datetime | None = None
     _was_available: bool = False
+    energy_kwh: float = 0.0
+    _last_energy_ts: datetime | None = None
+    _ticks_since_energy_save: int = 0
 
     @property
     def signal(self) -> str:
@@ -106,7 +114,26 @@ class NovoltoDevice:
         if not self._was_available:
             _LOGGER.info("Novolto %s is now reporting data", self.base_topic)
             self._was_available = True
+        if FIELD_POWER in payload:
+            self._update_energy(payload[FIELD_POWER])
         async_dispatcher_send(self.hass, self.signal)
+
+    def _update_energy(self, power_w: float) -> None:
+        """Integrate measured power into a persistent energy counter.
+
+        Same approach as dbus-novolto's `integrate` energy_source (accumulate
+        from `avp`) rather than the device's own `wel`, which resets to 0 on
+        every Novolto reboot.
+        """
+        now = dt_util.utcnow()
+        if self._last_energy_ts is not None:
+            elapsed_hours = (now - self._last_energy_ts).total_seconds() / 3600
+            self.energy_kwh += (power_w / 1000) * elapsed_hours
+        self._last_energy_ts = now
+
+    async def async_save_energy(self) -> None:
+        """Persist the accumulated energy value to disk."""
+        await self.store.async_save({"energy_kwh": self.energy_kwh})
 
     @callback
     def _handle_availability_tick(self, _now: datetime) -> None:
@@ -119,6 +146,12 @@ class NovoltoDevice:
                 self.timeout_seconds,
             )
             self._was_available = False
+
+        self._ticks_since_energy_save += 1
+        if self._ticks_since_energy_save >= ENERGY_SAVE_EVERY_N_TICKS:
+            self._ticks_since_energy_save = 0
+            self.hass.async_create_task(self.async_save_energy())
+
         async_dispatcher_send(self.hass, self.signal)
 
     async def async_set_value(self, name: str, value: Any) -> None:
@@ -144,12 +177,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     topic_control_suffix = options.get(CONF_TOPIC_CONTROL, DEFAULT_TOPIC_CONTROL)
     timeout_seconds = options.get(CONF_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS)
 
+    store: Store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}")
+    stored_data = await store.async_load()
+    initial_energy_kwh = (stored_data or {}).get("energy_kwh", 0.0)
+
     device = NovoltoDevice(
         hass=hass,
         entry=entry,
         base_topic=base_topic,
         topic_control=f"{base_topic}/{topic_control_suffix}",
         timeout_seconds=timeout_seconds,
+        store=store,
+        energy_kwh=initial_energy_kwh,
     )
 
     unsub_mqtt = await mqtt.async_subscribe(
@@ -167,6 +206,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             timedelta(seconds=_AVAILABILITY_CHECK_INTERVAL_SECONDS),
         )
     )
+    # Final checkpoint so at most a few minutes of energy accrual (since the
+    # last periodic save) is ever lost on a clean unload/restart.
+    entry.async_on_unload(device.async_save_energy)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"device": device}
     entry.async_on_unload(lambda: hass.data[DOMAIN].pop(entry.entry_id, None))

@@ -46,10 +46,17 @@
       "board_temperature": { "name": "Elektroniktemperatur" },
       "rssi": { "name": "WLAN-Signal" },
       "measurement_interval": { "name": "Messintervall" },
-      "status": { "name": "Status" }
+      "status": { "name": "Status" },
+      "energy": { "name": "Energie" },
+      "status_raw": { "name": "Status Rohwert" },
+      "rod_status_raw": { "name": "Rod Status Rohwert" },
+      "triacon_raw": { "name": "Triacon Rohwert" },
+      "heating_stage_1_raw": { "name": "Heizstufe 1 Rohwert" },
+      "heating_stage_2_raw": { "name": "Heizstufe 2 Rohwert" }
     },
     "binary_sensor": {
-      "heating": { "name": "Heizt" }
+      "heating": { "name": "Heizt" },
+      "rod_status": { "name": "Rod Status" }
     },
     "number": {
       "target_power": { "name": "Sollleistung" },

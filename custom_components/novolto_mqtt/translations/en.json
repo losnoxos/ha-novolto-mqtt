@@ -46,10 +46,17 @@
       "board_temperature": { "name": "Board temperature" },
       "rssi": { "name": "WiFi signal" },
       "measurement_interval": { "name": "Measurement interval" },
-      "status": { "name": "Status" }
+      "status": { "name": "Status" },
+      "energy": { "name": "Energy" },
+      "status_raw": { "name": "Status raw" },
+      "rod_status_raw": { "name": "Rod status raw" },
+      "triacon_raw": { "name": "Triacon raw" },
+      "heating_stage_1_raw": { "name": "Heating stage 1 raw" },
+      "heating_stage_2_raw": { "name": "Heating stage 2 raw" }
     },
     "binary_sensor": {
-      "heating": { "name": "Heating" }
+      "heating": { "name": "Heating" },
+      "rod_status": { "name": "Rod status" }
     },
     "number": {
       "target_power": { "name": "Target power" },

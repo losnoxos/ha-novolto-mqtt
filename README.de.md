@@ -16,10 +16,14 @@ und [heatpump-novolto](https://github.com/losnoxos/victronenergy.heatpump.novolt
 - `water_heater`-Entity: Ist- und Solltemperatur des Wassers
 - `number`-Entities: Sollleistung, Hysterese
 - `binary_sensor`: Heizt gerade (abgeleitet aus der Ist-Leistung, nicht aus
-  dem im Test unzuverlässigen `rod_st`-Feld)
+  dem im Test unzuverlässigen `rod_st`-Feld), dazu `rod_st` selbst als
+  eigener diagnostischer Binary-Sensor
 - `sensor`-Entities: Spannung, Strom, Frequenz, Wassertemperatur, dekodierte
-  Status-/Warnmeldungen – dazu ein optionaler Board-Temperatursensor und
-  diagnostische WLAN-/Messintervall-Sensoren (standardmäßig deaktiviert)
+  Status-/Warnmeldungen, ein persistenter Energiezähler – dazu ein
+  optionaler Board-Temperatursensor und diagnostische Sensoren (WLAN-Signal,
+  Messintervall, Rohwerte für Status/Rod-Status/Triacon/Heizstufen – letztere
+  vier nur zur Parität mit der Hersteller-App/Diagnose, nicht dokumentiert
+  und nicht für Automatisierungen gedacht)
 - Deutsche und englische UI-Übersetzung
 
 ## Voraussetzungen
@@ -48,13 +52,12 @@ Verfügbarkeits-Timeout sowie der optionale Board-Temperatursensor.
 
 ## Energiezähler
 
-Diese Integration bringt bewusst **keinen eigenen Energiezähler** mit.
-Stattdessen HAs eingebauten
-[Riemann-Summe-Integral](https://www.home-assistant.io/integrations/integration/)-Helfer
-auf den Leistungssensor legen – einfacher und robuster als eine eigene
-Persistenz nachzubauen, und er lässt sich direkt ins Energie-Dashboard
-einbinden. (Das geräteeigene Feld `wel` springt bei jedem Novolto-Neustart
-auf 0 zurück, deshalb wird es hier nicht verwendet.)
+Der `Energie`-Sensor wird aus der Ist-Leistung (`avp`) integriert – derselbe
+Ansatz wie bei dbus-novolto (`integrate` energy_source) – und persistent auf
+Platte gespeichert, übersteht also HA-Neustarts. Bewusst **nicht** das
+geräteeigene Feld `wel`, das bei jedem Novolto-Neustart auf 0 zurückspringt.
+Der Sensor nutzt `state_class: total_increasing` und lässt sich direkt ins
+Energie-Dashboard einbinden – kein zusätzlicher Riemann-Summe-Helfer nötig.
 
 ## Bekannte Einschränkungen
 
@@ -63,8 +66,10 @@ auf 0 zurück, deshalb wird es hier nicht verwendet.)
   angezeigt
 - Keine MQTT-Auto-Discovery beim Einrichten – das Base Topic muss manuell
   eingegeben werden
-- `rod_st`, `triacon`, `r1on`, `r2on` werden bewusst nicht abgebildet –
-  laut Hersteller unzuverlässig bzw. nicht dokumentiert
+- `rod_st`, `triacon`, `r1on`, `r2on` werden nur als rohe Diagnose-Sensoren
+  abgebildet (für Parität/Fehlersuche) – vom Hersteller nicht dokumentiert,
+  `rod_st` insbesondere fließt in keine Ein/Aus-Entscheidung ein (siehe
+  `Heizt`-Binary-Sensor)
 
 ## Protokoll-Referenz
 
