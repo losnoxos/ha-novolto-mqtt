@@ -4,10 +4,7 @@
 
 Home Assistant custom integration (via HACS) for the Novolto electric
 heating rod (P2300/P3000), over MQTT. Talks directly to the same local
-broker the Novolto itself publishes to - **no Venus OS / Victron dbus
-required**. Protocol-compatible sibling project to
-[dbus-novolto](https://github.com/losnoxos/dbus-novolto) (Venus OS driver)
-and [heatpump-novolto](https://github.com/losnoxos/victronenergy.heatpump.novolto).
+broker the Novolto itself publishes to.
 
 ## What you get
 
@@ -18,7 +15,7 @@ and [heatpump-novolto](https://github.com/losnoxos/victronenergy.heatpump.novolt
 - `binary_sensor`: heating right now (derived from measured power, not the
   `rod_st` field, which proved unreliable at low power levels), plus the
   raw `rod_st` value as its own diagnostic binary sensor
-- `sensor` entities: voltage, current, frequency, water temperature,
+- `sensor` entities: power, voltage, current, frequency, water temperature,
   decoded status/warning flags, a persistent energy counter - plus an
   optional board-temperature sensor and diagnostic sensors (WiFi signal,
   measurement interval, raw status/rod-status/triacon/heating-stage

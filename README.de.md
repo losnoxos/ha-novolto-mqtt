@@ -4,10 +4,7 @@
 
 Home-Assistant-Integration (per HACS) für den Novolto Heizstab
 (P2300/P3000) via MQTT. Spricht direkt mit demselben lokalen Broker, an dem
-auch der Novolto selbst publiziert – **kein Venus OS/Victron-dbus nötig**.
-Protokoll-kompatibles Schwesterprojekt zu
-[dbus-novolto](https://github.com/losnoxos/dbus-novolto) (Venus-OS-Treiber)
-und [heatpump-novolto](https://github.com/losnoxos/victronenergy.heatpump.novolto).
+auch der Novolto selbst publiziert.
 
 ## Funktionsumfang
 
@@ -18,8 +15,8 @@ und [heatpump-novolto](https://github.com/losnoxos/victronenergy.heatpump.novolt
 - `binary_sensor`: Heizt gerade (abgeleitet aus der Ist-Leistung, nicht aus
   dem im Test unzuverlässigen `rod_st`-Feld), dazu `rod_st` selbst als
   eigener diagnostischer Binary-Sensor
-- `sensor`-Entities: Spannung, Strom, Frequenz, Wassertemperatur, dekodierte
-  Status-/Warnmeldungen, ein persistenter Energiezähler – dazu ein
+- `sensor`-Entities: Leistung, Spannung, Strom, Frequenz, Wassertemperatur,
+  dekodierte Status-/Warnmeldungen, ein persistenter Energiezähler – dazu ein
   optionaler Board-Temperatursensor und diagnostische Sensoren (WLAN-Signal,
   Messintervall, Rohwerte für Status/Rod-Status/Triacon/Heizstufen – letztere
   vier nur zur Parität mit der Hersteller-App/Diagnose, nicht dokumentiert
