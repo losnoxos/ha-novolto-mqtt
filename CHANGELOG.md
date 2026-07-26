@@ -3,9 +3,7 @@
 All notable changes to this project are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
-
-Initial version, not yet tagged/released.
+## [0.3.0] - 2026-07-26
 
 ### Added
 - Config flow (UI setup), multiple Novolto devices supported (one config
