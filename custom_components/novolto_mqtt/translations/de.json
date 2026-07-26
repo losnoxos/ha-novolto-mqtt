@@ -39,6 +39,7 @@
   },
   "entity": {
     "sensor": {
+      "power": { "name": "Leistung" },
       "voltage": { "name": "Spannung" },
       "current": { "name": "Strom" },
       "frequency": { "name": "Frequenz" },

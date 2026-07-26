@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] - 2026-07-26
+
+### Added
+- `sensor`: Power (`avp`) - measured power was already used internally
+  (heating threshold, energy integration) but was never exposed as its
+  own entity
+
+### Fixed
+- `water_heater` entity no longer shows "unknown" as its state.
+  `WaterHeaterEntity.state` always returns `current_operation`, which we
+  never set; fixed by fixing it to "off" (the Novolto has no real
+  operation modes), matching the fallback HA's own MQTT `water_heater`
+  platform uses when no mode topic is configured - same behavior as the
+  existing manual `mqtt.yaml` setup
+
 ## [0.3.0] - 2026-07-26
 
 ### Added

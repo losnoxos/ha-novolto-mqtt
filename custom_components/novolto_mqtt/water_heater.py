@@ -8,7 +8,7 @@ from homeassistant.components.water_heater import (
     WaterHeaterEntityFeature,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.const import ATTR_TEMPERATURE, STATE_OFF, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -39,11 +39,17 @@ class NovoltoWaterHeater(NovoltoEntity, WaterHeaterEntity):
 
     The Novolto has no selectable operation mode - only a target
     temperature - so this entity only declares TARGET_TEMPERATURE support.
+    `current_operation` is fixed to "off": WaterHeaterEntity.state always
+    returns current_operation (it's a @final property), so leaving it at
+    its None default would show as "unknown" in the UI. The MQTT water_heater
+    platform in HA core defaults to the same STATE_OFF when no mode topic is
+    configured - matching that keeps parity with the existing manual setup.
     """
 
     _attr_translation_key = "heating"
     _attr_supported_features = WaterHeaterEntityFeature.TARGET_TEMPERATURE
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_current_operation = STATE_OFF
 
     def __init__(self, device: NovoltoDevice) -> None:
         """Initialize the water heater entity, reading limits from options."""

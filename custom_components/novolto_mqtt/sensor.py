@@ -14,6 +14,7 @@ from homeassistant.const import (
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfFrequency,
+    UnitOfPower,
     UnitOfTemperature,
     UnitOfTime,
 )
@@ -29,6 +30,7 @@ from .const import (
     FIELD_CURRENT,
     FIELD_FREQUENCY,
     FIELD_MSI,
+    FIELD_POWER,
     FIELD_R1ON,
     FIELD_R2ON,
     FIELD_ROD_STATUS,
@@ -49,6 +51,7 @@ async def async_setup_entry(
     device: NovoltoDevice = hass.data[DOMAIN][entry.entry_id]["device"]
 
     entities: list[NovoltoEntity] = [
+        NovoltoPowerSensor(device),
         NovoltoVoltageSensor(device),
         NovoltoCurrentSensor(device),
         NovoltoFrequencySensor(device),
@@ -85,6 +88,16 @@ class _NovoltoFieldSensor(NovoltoEntity, SensorEntity):
     def native_value(self):
         """Return the field's current value, or None if never received."""
         return self.device.data.get(self._field)
+
+
+class NovoltoPowerSensor(_NovoltoFieldSensor):
+    """Measured power (`avp`), averaged by the device over 5s."""
+
+    _field = FIELD_POWER
+    _attr_translation_key = "power"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
 
 class NovoltoVoltageSensor(_NovoltoFieldSensor):
