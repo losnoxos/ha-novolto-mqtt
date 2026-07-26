@@ -1,0 +1,12 @@
+{
+  "domain": "novolto_mqtt",
+  "name": "Novolto MQTT",
+  "codeowners": ["@losnoxos"],
+  "config_flow": true,
+  "dependencies": ["mqtt"],
+  "documentation": "https://github.com/losnoxos/ha-novolto-mqtt",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/losnoxos/ha-novolto-mqtt/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

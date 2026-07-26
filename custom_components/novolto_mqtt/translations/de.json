@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Novolto Heizstab hinzufügen",
+        "description": "MQTT-Base-Topic des Geräts eingeben (die Seriennummer, z.B. AAA.BBB.123456 - sichtbar im MQTT Explorer) sowie optional einen Anzeigenamen.",
+        "data": {
+          "base_topic": "Base Topic (Geräte-Serial)",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "invalid_base_topic": "Base Topic darf nicht leer sein."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Novolto MQTT Einstellungen",
+        "data": {
+          "topic_info": "Info-Topic (Suffix)",
+          "topic_control": "Control-Topic (Suffix)",
+          "max_power": "Maximale Leistung (W)",
+          "power_step": "Leistungs-Schrittweite (W)",
+          "heating_threshold_w": "Schwellwert \"Heizt gerade\" (W)",
+          "enable_board_temperature": "Board-/Elektroniktemperatur-Sensor aktivieren",
+          "sptw_min": "Minimale Solltemperatur (°C)",
+          "sptw_max": "Maximale Solltemperatur (°C)",
+          "sptwh_min": "Minimale Hysterese (°C)",
+          "sptwh_max": "Maximale Hysterese (°C)",
+          "timeout_seconds": "Verfügbarkeits-Timeout (s)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "voltage": { "name": "Spannung" },
+      "current": { "name": "Strom" },
+      "frequency": { "name": "Frequenz" },
+      "water_temperature": { "name": "Wassertemperatur" },
+      "board_temperature": { "name": "Elektroniktemperatur" },
+      "rssi": { "name": "WLAN-Signal" },
+      "measurement_interval": { "name": "Messintervall" },
+      "status": { "name": "Status" }
+    },
+    "binary_sensor": {
+      "heating": { "name": "Heizt" }
+    },
+    "number": {
+      "target_power": { "name": "Sollleistung" },
+      "water_hysteresis": { "name": "Hysterese" }
+    },
+    "water_heater": {
+      "heating": { "name": "Heizung" }
+    }
+  }
+}

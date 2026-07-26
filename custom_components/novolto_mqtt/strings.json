@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Novolto heating rod",
+        "description": "Enter the device's MQTT base topic (its serial number, e.g. AAA.BBB.123456 - visible in MQTT Explorer) and an optional display name.",
+        "data": {
+          "base_topic": "Base topic (device serial)",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "invalid_base_topic": "Base topic must not be empty."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Novolto MQTT options",
+        "data": {
+          "topic_info": "Info topic suffix",
+          "topic_control": "Control topic suffix",
+          "max_power": "Maximum power (W)",
+          "power_step": "Power step (W)",
+          "heating_threshold_w": "Heating threshold (W)",
+          "enable_board_temperature": "Enable board/electronics temperature sensor",
+          "sptw_min": "Minimum target water temperature (°C)",
+          "sptw_max": "Maximum target water temperature (°C)",
+          "sptwh_min": "Minimum hysteresis (°C)",
+          "sptwh_max": "Maximum hysteresis (°C)",
+          "timeout_seconds": "Availability timeout (s)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "voltage": { "name": "Voltage" },
+      "current": { "name": "Current" },
+      "frequency": { "name": "Frequency" },
+      "water_temperature": { "name": "Water temperature" },
+      "board_temperature": { "name": "Board temperature" },
+      "rssi": { "name": "WiFi signal" },
+      "measurement_interval": { "name": "Measurement interval" },
+      "status": { "name": "Status" }
+    },
+    "binary_sensor": {
+      "heating": { "name": "Heating" }
+    },
+    "number": {
+      "target_power": { "name": "Target power" },
+      "water_hysteresis": { "name": "Water hysteresis" }
+    },
+    "water_heater": {
+      "heating": { "name": "Heating" }
+    }
+  }
+}
