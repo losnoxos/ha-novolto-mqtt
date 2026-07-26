@@ -32,6 +32,13 @@ broker the Novolto itself publishes to.
 
 ## Installation via HACS
 
+**Quick way:** click the button below, confirm in HACS, then continue at
+step 3.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=losnoxos&repository=ha-novolto-mqtt&category=integration)
+
+**Manual way:**
+
 1. HACS → ⋮ menu → **Custom repositories**
 2. Add `https://github.com/losnoxos/ha-novolto-mqtt`, category
    **Integration**
