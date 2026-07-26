@@ -61,6 +61,7 @@ class NovoltoDevice:
     timeout_seconds: int
     data: dict[str, Any] = field(default_factory=dict)
     last_seen: datetime | None = None
+    _was_available: bool = False
 
     @property
     def signal(self) -> str:
@@ -99,12 +100,25 @@ class NovoltoDevice:
                 )
             return
 
+        _LOGGER.debug("Novolto %s telegram: %s", self.base_topic, payload)
         self.data.update(payload)
         self.last_seen = dt_util.utcnow()
+        if not self._was_available:
+            _LOGGER.info("Novolto %s is now reporting data", self.base_topic)
+            self._was_available = True
         async_dispatcher_send(self.hass, self.signal)
 
     @callback
     def _handle_availability_tick(self, _now: datetime) -> None:
+        if self._was_available and not self.available:
+            _LOGGER.warning(
+                "Novolto %s stopped reporting data (last telegram %s ago, "
+                "timeout is %ss) - marking unavailable",
+                self.base_topic,
+                (dt_util.utcnow() - self.last_seen) if self.last_seen else "never",
+                self.timeout_seconds,
+            )
+            self._was_available = False
         async_dispatcher_send(self.hass, self.signal)
 
     async def async_set_value(self, name: str, value: Any) -> None:
@@ -141,17 +155,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unsub_mqtt = await mqtt.async_subscribe(
         hass, f"{base_topic}/{topic_info_suffix}", device._handle_message
     )
-    unsub_timer = async_track_time_interval(
-        hass,
-        device._handle_availability_tick,
-        timedelta(seconds=_AVAILABILITY_CHECK_INTERVAL_SECONDS),
+    # Registered via async_on_unload (not manual hass.data bookkeeping) so
+    # this subscription and timer are guaranteed to be torn down even if
+    # setup is retried/aborted partway - otherwise a leaked, orphaned
+    # subscription from a previous attempt could linger unnoticed.
+    entry.async_on_unload(unsub_mqtt)
+    entry.async_on_unload(
+        async_track_time_interval(
+            hass,
+            device._handle_availability_tick,
+            timedelta(seconds=_AVAILABILITY_CHECK_INTERVAL_SECONDS),
+        )
     )
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "device": device,
-        "unsub_mqtt": unsub_mqtt,
-        "unsub_timer": unsub_timer,
-    }
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"device": device}
+    entry.async_on_unload(lambda: hass.data[DOMAIN].pop(entry.entry_id, None))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
@@ -161,12 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        stored = hass.data[DOMAIN].pop(entry.entry_id)
-        stored["unsub_mqtt"]()
-        stored["unsub_timer"]()
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
