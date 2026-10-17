@@ -1,0 +1,116 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Novolto Heizstab hinzufügen",
+        "description": "MQTT-Base-Topic des Geräts eingeben (die Seriennummer, z.B. AAA.BBB.123456 - sichtbar im MQTT Explorer) sowie optional einen Anzeigenamen.",
+        "data": {
+          "base_topic": "Base Topic (Geräte-Serial)",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "invalid_base_topic": "Base Topic des Geräts (Seriennummer) ohne MQTT-Platzhalter (+ oder #) eingeben."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits eingerichtet.",
+      "mqtt_not_configured": "Die MQTT-Integration muss zuerst eingerichtet werden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Novolto MQTT Einstellungen",
+        "data": {
+          "topic_info": "Info-Topic (Suffix)",
+          "topic_control": "Control-Topic (Suffix)",
+          "max_power": "Maximale Leistung (W)",
+          "power_step": "Leistungs-Schrittweite (W)",
+          "heating_threshold_w": "Schwellwert \"Heizt gerade\" (W)",
+          "enable_board_temperature": "Board-/Elektroniktemperatur-Sensor aktivieren",
+          "sptw_min": "Minimale Solltemperatur (°C)",
+          "sptw_max": "Maximale Solltemperatur (°C)",
+          "sptwh_min": "Minimale Hysterese (°C)",
+          "sptwh_max": "Maximale Hysterese (°C)",
+          "timeout_seconds": "Verfügbarkeits-Timeout (s)"
+        }
+      }
+    },
+    "error": {
+      "invalid_topic": "Topic-Suffix ohne MQTT-Platzhalter (+ oder #) eingeben.",
+      "same_topic": "Info- und Control-Topic müssen sich unterscheiden.",
+      "min_not_below_max": "Das Maximum muss größer als das Minimum sein."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "power": {
+        "name": "Leistung"
+      },
+      "voltage": {
+        "name": "Spannung"
+      },
+      "current": {
+        "name": "Strom"
+      },
+      "frequency": {
+        "name": "Frequenz"
+      },
+      "water_temperature": {
+        "name": "Wassertemperatur"
+      },
+      "board_temperature": {
+        "name": "Elektroniktemperatur"
+      },
+      "rssi": {
+        "name": "WLAN-Signal"
+      },
+      "measurement_interval": {
+        "name": "Messintervall"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "energy": {
+        "name": "Energie"
+      },
+      "status_raw": {
+        "name": "Status Rohwert"
+      },
+      "rod_status_raw": {
+        "name": "Rod Status Rohwert"
+      },
+      "triacon_raw": {
+        "name": "Triacon Rohwert"
+      },
+      "heating_stage_1_raw": {
+        "name": "Heizstufe 1 Rohwert"
+      },
+      "heating_stage_2_raw": {
+        "name": "Heizstufe 2 Rohwert"
+      }
+    },
+    "binary_sensor": {
+      "heating": {
+        "name": "Heizt"
+      },
+      "rod_status": {
+        "name": "Rod Status"
+      }
+    },
+    "number": {
+      "target_power": {
+        "name": "Sollleistung"
+      },
+      "water_hysteresis": {
+        "name": "Hysterese"
+      }
+    }
+  },
+  "exceptions": {
+    "temperature_out_of_range": {
+      "message": "Solltemperatur {temperature} °C liegt außerhalb des erlaubten Bereichs von {min_temp}–{max_temp} °C."
+    }
+  }
+}
