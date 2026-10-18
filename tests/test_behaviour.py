@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import (
@@ -127,7 +127,16 @@ async def test_power_stage_select(hass: HomeAssistant, mqtt_mock) -> None:
     assert hass.states.get(select_id).state == "2000 W"
     fire(hass, {**FULL_TELEGRAM, "spp": 730})  # e.g. PV surplus control
     await hass.async_block_till_done()
-    assert hass.states.get(select_id).state == STATE_UNKNOWN
+    assert hass.states.get(select_id).state == "custom"
+    assert hass.states.get(select_id).attributes["options"][-1] == "custom"
+
+    mqtt_mock.async_publish.reset_mock()
+    await hass.services.async_call(
+        "select", "select_option", {"entity_id": select_id, "option": "custom"},
+        blocking=True,
+    )
+    assert published(mqtt_mock) == []  # "custom" changes nothing
+    assert hass.states.get(select_id).state == "custom"
 
     mqtt_mock.async_publish.reset_mock()
     await hass.services.async_call(

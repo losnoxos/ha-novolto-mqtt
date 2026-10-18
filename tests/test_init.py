@@ -42,7 +42,7 @@ EXPECTED_STATES = {
     ("binary_sensor", "heating"): "on",
     ("number", "target_power"): "400",
     ("number", "water_hysteresis"): "2.0",
-    ("select", "power_stage"): STATE_UNKNOWN,  # 400 W is no stage
+    ("select", "power_stage"): "custom",  # 400 W is no stage
     ("water_heater", "heating"): "heating",
 }
 # Disabled by default; checked with enable_all=True.

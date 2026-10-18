@@ -4,7 +4,7 @@
     "step": {
       "discovery_confirm": {
         "title": "Novolto-Heizstab gefunden",
-        "description": "Seriennummer: **{serial}** · Wassertemperatur: {water_temp} °C · zuletzt gesehen: vor {age}. Vergib einen Namen und wähle das Modell.",
+        "description": "Seriennummer: **{serial}** · Wassertemperatur: {water_temp} °C · zuletzt gesehen: vor {age}. Vergib einen Namen und wähle das Modell.\n\nStandardwerte nach der Einrichtung: max. Solltemperatur {default_sptw_max} °C · Schaltdifferenz bis {default_sptwh_max} °C · Leistungsstufen {stages_p3000} W (P2300: {stages_p2300} W). Ändern kannst du sie jederzeit unter „Konfigurieren“.",
         "data": {
           "name": "Name",
           "model": "Modell"
@@ -16,7 +16,7 @@
       },
       "discovery_confirm_offline": {
         "title": "Novolto-Heizstab gefunden",
-        "description": "Seriennummer: **{serial}** · Wassertemperatur: {water_temp} °C · zuletzt gesehen: vor {age}. Vergib einen Namen und wähle das Modell.\n\nAchtung: Der Heizstab hat sich seit {age} nicht gemeldet und ist vermutlich gerade aus. Du kannst ihn trotzdem einrichten.",
+        "description": "Seriennummer: **{serial}** · Wassertemperatur: {water_temp} °C · zuletzt gesehen: vor {age}. Vergib einen Namen und wähle das Modell.\n\nStandardwerte nach der Einrichtung: max. Solltemperatur {default_sptw_max} °C · Schaltdifferenz bis {default_sptwh_max} °C · Leistungsstufen {stages_p3000} W (P2300: {stages_p2300} W). Ändern kannst du sie jederzeit unter „Konfigurieren“.\n\nAchtung: Der Heizstab hat sich seit {age} nicht gemeldet und ist vermutlich gerade aus. Du kannst ihn trotzdem einrichten.",
         "data": {
           "name": "Name",
           "model": "Modell"
@@ -28,7 +28,7 @@
       },
       "select": {
         "title": "Heizstab auswählen",
-        "description": "{count} Heizstab/Heizstäbe gefunden. Nicht dabei? Prüfe, ob der Heizstab eingeschaltet und mit dem Broker verbunden ist ([Anleitung]({readme_url})), oder gib das Topic selbst ein.",
+        "description": "Gefundene Heizstäbe: {count}. Nicht dabei? Prüfe, ob der Heizstab eingeschaltet und mit dem Broker verbunden ist ([Anleitung]({readme_url})), oder gib das Topic selbst ein.",
         "data": {
           "device": "Heizstab"
         }
@@ -44,8 +44,8 @@
         }
       },
       "no_data": {
-        "title": "Keine Daten unter {topic}",
-        "description": "In 35 Sekunden kam keine Nachricht von diesem Heizstab. Häufige Ursachen: Tippfehler im Topic · Heizstab aus oder ohne Netzwerkverbindung (WLAN bzw. LAN-Kabel) · Heizstab sendet an einen anderen MQTT-Broker · falscher Benutzer oder falsches Passwort in der Konfiguration des Heizstabs.",
+        "title": "Keine Daten empfangen",
+        "description": "Unter **{topic}** kam in 35 Sekunden keine Nachricht von einem Heizstab. Häufige Ursachen: Tippfehler im Topic · Heizstab aus oder ohne Netzwerkverbindung (WLAN bzw. LAN-Kabel) · Heizstab sendet an einen anderen MQTT-Broker · falscher Benutzer oder falsches Passwort in der Konfiguration des Heizstabs.",
         "menu_options": {
           "manual": "Topic korrigieren",
           "search": "Erneut suchen",
@@ -53,8 +53,8 @@
         }
       },
       "no_data_case": {
-        "title": "Keine Daten unter {topic}",
-        "description": "In 35 Sekunden kam keine Nachricht von diesem Heizstab. Häufige Ursachen: Tippfehler im Topic · Heizstab aus oder ohne Netzwerkverbindung (WLAN bzw. LAN-Kabel) · Heizstab sendet an einen anderen MQTT-Broker · falscher Benutzer oder falsches Passwort in der Konfiguration des Heizstabs. Gefunden wurde **{found}** – meintest du diesen?",
+        "title": "Keine Daten empfangen",
+        "description": "Unter **{topic}** kam in 35 Sekunden keine Nachricht von einem Heizstab. Häufige Ursachen: Tippfehler im Topic · Heizstab aus oder ohne Netzwerkverbindung (WLAN bzw. LAN-Kabel) · Heizstab sendet an einen anderen MQTT-Broker · falscher Benutzer oder falsches Passwort in der Konfiguration des Heizstabs. Gefunden wurde **{found}** – meintest du diesen?",
         "menu_options": {
           "manual": "Topic korrigieren",
           "search": "Erneut suchen",
@@ -67,6 +67,7 @@
       },
       "device": {
         "title": "Name und Modell",
+        "description": "Standardwerte nach der Einrichtung: max. Solltemperatur {default_sptw_max} °C · Schaltdifferenz bis {default_sptwh_max} °C · Leistungsstufen {stages_p3000} W (P2300: {stages_p2300} W). Ändern kannst du sie jederzeit unter „Konfigurieren“.",
         "data": {
           "name": "Name",
           "model": "Modell"
@@ -97,7 +98,8 @@
       "name_taken": "Diesen Namen verwendet bereits ein anderer Heizstab. Bitte einen anderen Namen wählen.",
       "name_required": "Bitte einen Namen eingeben.",
       "topic_in_use": "Mit diesem Topic ist bereits ein anderer Heizstab eingerichtet.",
-      "other_device": "Unter diesem Topic sendet ein anderer Heizstab ({serial}). Bitte das richtige Topic eingeben."
+      "other_device": "Unter diesem Topic sendet ein anderer Heizstab ({serial}). Bitte das richtige Topic eingeben.",
+      "none_new": "Kein neuer Heizstab gefunden – bereits eingerichtete werden hier nicht angezeigt. Für einen weiteren Heizstab: prüfen, ob er eingeschaltet und mit dem Broker verbunden ist, oder das Topic selbst eingeben."
     },
     "abort": {
       "mqtt_not_configured": "Home Assistant braucht zuerst einen MQTT-Broker und die MQTT-Integration. So geht's: 1. [Mosquitto-Broker-Add-on installieren und starten]({addon_url}) 2. [MQTT-Integration einrichten]({mqtt_url}) 3. Den Heizstab mit dem Broker verbinden ([Anleitung]({readme_url})). Danach diese Integration erneut hinzufügen.",
@@ -113,6 +115,21 @@
       "init": {
         "title": "Einstellungen",
         "description": "Erweiterte Einstellungen (nur Ansicht): Schrittweite {power_step} W · Schwellwert „Heizt“ {threshold} W · Solltemperatur min. {sptw_min} °C · Schaltdifferenz {sptwh_min}–{sptwh_max} °C · Timeout {timeout} s · Topics {topic_info} / {topic_control}",
+        "data": {
+          "power_stages": "Leistungsstufen (W)",
+          "model": "Modell",
+          "sptw_max": "Maximale Solltemperatur (°C)",
+          "edit_advanced": "Erweiterte Einstellungen bearbeiten"
+        },
+        "data_description": {
+          "power_stages": "Werte in Watt, durch Komma getrennt, z. B. `0, 1000, 2000, 3000`. 0 bedeutet Aus. Hinweis: Zwischenwerte (z. B. 1500 W) erreicht der Heizstab, indem er zwischen ganzen 1000-W-Stufen taktet – die tatsächliche Leistung pendelt dann (z. B. 1500 W → 1000–2000 W). Für eine ruhige Netzlast nur ganze Stufen verwenden.",
+          "model": "Setzt die Standardwerte passend zum Heizstab (maximale Leistung, vorgeschlagene Leistungsstufen).",
+          "sptw_max": "Höher lässt sich die Solltemperatur nicht einstellen – weder im Dashboard noch per Automation. Das Wasser wird bis zu Schaltdifferenz/2 wärmer als eingestellt."
+        }
+      },
+      "init_model": {
+        "title": "Einstellungen",
+        "description": "Modell auf {model} geändert – die Leistungsstufen wurden angepasst. Bitte prüfen und mit OK speichern.",
         "data": {
           "power_stages": "Leistungsstufen (W)",
           "model": "Modell",
@@ -191,7 +208,8 @@
       "power_stage": {
         "name": "Leistungsstufe",
         "state": {
-          "off": "Aus"
+          "off": "Aus",
+          "custom": "Eigener Wert"
         }
       }
     },

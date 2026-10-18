@@ -204,10 +204,13 @@ Einstellungen → Geräte & Dienste → Novolto MQTT → **Konfigurieren**:
 
 - **Leistungsstufen:** Werte für die Auswahl „Leistungsstufe“, z. B.
   `0, 1000, 2000, 3000`. 0 muss dabei sein. Eine leere Liste blendet die
-  Auswahl aus. Zwischenwerte wie 1500 W lässt der Heizstab zwischen den
+  Auswahl aus. Passt die Sollleistung zu keiner Stufe (z. B. von einer
+  Automation gesetzt), zeigt die Auswahl „Eigener Wert“. Zwischenwerte wie 1500 W lässt der Heizstab zwischen den
   vollen Stufen pendeln (siehe [Bedienen](#bedienen)), für eine ruhige
   Netzlast also nur volle Stufen eintragen.
-- **Modell:** P2300 oder P3000, legt die maximale Leistung fest.
+- **Modell:** P2300 oder P3000, legt die maximale Leistung fest. Nach
+  einem Modellwechsel erscheinen die Einstellungen noch einmal mit den
+  Leistungsstufen des neuen Modells; erst das zweite OK speichert.
 - **Maximale Solltemperatur:** siehe [Bedienen](#bedienen).
 - **Erweiterte Einstellungen** (nur nach Häkchen): Schrittweite der
   Sollleistung, Schwellwert für „Heizt“, minimale Solltemperatur, Bereich
@@ -244,7 +247,7 @@ z. B. „Heizstab Keller“ und „Heizstab Garage“.
 |---|---|---|
 | „Home Assistant braucht zuerst einen MQTT-Broker …“ | MQTT fehlt | Schritt 1 |
 | Suche findet nichts | Heizstab aus, anderer Broker, falscher Benutzer/Passwort | Schritt 2 und 3 prüfen |
-| „Keine Daten unter …“ | Tippfehler im Topic (Groß-/Kleinschreibung!) | Topic aus der Konfiguration des Heizstabs übernehmen |
+| „Keine Daten empfangen“ | Tippfehler im Topic (Groß-/Kleinschreibung!) | Topic aus der Konfiguration des Heizstabs übernehmen |
 | Alles „Nicht verfügbar“ | Heizstab aus oder keine Netzwerkverbindung | Strom und WLAN/LAN prüfen. Nach dem Neustart von HA dauert es bis zu 30 s |
 | Solltemperatur gesetzt, nichts passiert | Sollleistung steht auf 0 W | Leistung erhöhen |
 | Integration fehlt in der Auswahl | HA nach HACS-Download nicht neu gestartet | Neustart, Strg+F5 |

@@ -11,6 +11,9 @@ from .device import NovoltoConfigEntry, NovoltoDevice
 from .entity import NovoltoEntity
 
 OPTION_OFF = "off"
+# Shown while the target power matches none of the stages (e.g. set by a PV
+# surplus automation); HA can't show an empty select, it would read "unknown".
+OPTION_CUSTOM = "custom"
 
 
 def stage_option(watts: int) -> str:
@@ -39,8 +42,8 @@ async def async_setup_entry(
 class NovoltoPowerStageSelect(NovoltoEntity, SelectEntity):
     """Choose one of the configured power stages; writes `spp`.
 
-    Shows no option while the target power matches none of the stages
-    (e.g. a PV surplus automation set 730 W).
+    Shows "Custom value" while the target power matches none of the stages
+    (e.g. a PV surplus automation set 730 W); choosing it changes nothing.
     """
 
     _attr_translation_key = "power_stage"
@@ -52,7 +55,7 @@ class NovoltoPowerStageSelect(NovoltoEntity, SelectEntity):
         self._stages: dict[str, int] = {
             stage_option(watts): watts for watts in device.option(CONF_POWER_STAGES, [])
         }
-        self._attr_options = list(self._stages)
+        self._attr_options = [*self._stages, OPTION_CUSTOM]
 
     @property
     def current_option(self) -> str | None:
@@ -61,8 +64,13 @@ class NovoltoPowerStageSelect(NovoltoEntity, SelectEntity):
         if target is None:
             return None
         option = stage_option(int(target))
-        return option if option in self._stages and target == int(target) else None
+        if option in self._stages and target == int(target):
+            return option
+        return OPTION_CUSTOM
 
     async def async_select_option(self, option: str) -> None:
-        """Send the stage's power as new target power."""
+        """Send the stage's power as new target power ("custom": no change)."""
+        if option not in self._stages:
+            self.async_write_ha_state()
+            return
         await self.device.async_set_target_power(self._stages[option])

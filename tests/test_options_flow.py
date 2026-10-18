@@ -53,7 +53,7 @@ async def test_save_stages_reloads_with_select(hass: HomeAssistant, mqtt_mock) -
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options["power_stages"] == [0, 500, 2000]
     assert entry.state is ConfigEntryState.LOADED
-    assert hass.states.get(select_id).attributes["options"] == ["off", "500 W", "2000 W"]
+    assert hass.states.get(select_id).attributes["options"] == ["off", "500 W", "2000 W", "custom"]
 
 
 async def test_empty_stages_remove_select(hass: HomeAssistant, mqtt_mock) -> None:
@@ -88,6 +88,15 @@ async def test_stage_errors(hass: HomeAssistant, mqtt_mock, stages, model, error
 async def test_model_change_takes_new_suggestion(hass: HomeAssistant, mqtt_mock) -> None:
     entry, result = await _init(hass)
     result = await _configure(hass, result, {**STEP1, "model": "p2300"})
+    # Step 1 again with the new model's stages, nothing saved yet.
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init_model"
+    assert result["description_placeholders"]["model"] == "P2300"
+    shown = result["data_schema"]({})
+    assert shown["power_stages"] == "0, 1000, 2000, 2300"
+    assert shown["model"] == "p2300"
+    assert entry.options["model"] == "p3000"
+    result = await _configure(hass, result, shown)
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert entry.options["model"] == "p2300"
     assert entry.options["power_stages"] == [0, 1000, 2000, 2300]

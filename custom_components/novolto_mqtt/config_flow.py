@@ -111,6 +111,27 @@ def _format_age(seconds: float | None) -> str:
     return f"{int(seconds // 3600)} h"
 
 
+def _format_temp(hass: HomeAssistant, value: float | None) -> str:
+    """Water temperature with one decimal, decimal comma in German."""
+    if value is None:
+        return "?"
+    text = f"{value:.1f}"
+    return text.replace(".", ",") if _is_de(hass) else text
+
+
+def _defaults_placeholders() -> dict[str, str]:
+    """Defaults shown before setup, taken from the code so texts can't drift."""
+    options = default_options(DEFAULT_MODEL)
+    return {
+        "default_sptw_max": f"{options[CONF_SPTW_MAX]:g}",
+        "default_sptwh_max": f"{options[CONF_SPTWH_MAX]:g}",
+        **{
+            f"stages_{key}": _stages_text(list(model.power_stages))
+            for key, model in MODELS.items()
+        },
+    }
+
+
 def _readme_url(hass: HomeAssistant) -> str:
     return URL_README_DE if _is_de(hass) else URL_README
 
@@ -271,7 +292,8 @@ class NovoltoMqttConfigFlow(ConfigFlow, domain=DOMAIN):
         self._choice: FoundDevice | None = None
         self._topic: str | None = None
         self._case_hint: str | None = None
-        self._none_found = False
+        # Error key shown on the manual step after an unsuccessful search.
+        self._none_found: str | None = None
         self._task: asyncio.Task | None = None
 
     @callback
@@ -315,7 +337,7 @@ class NovoltoMqttConfigFlow(ConfigFlow, domain=DOMAIN):
         if device.base_topic != device.serial:
             label += f" ({device.base_topic})"
         if device.water_temp is not None:
-            label += f" – {device.water_temp:g} °C"
+            label += f" – {_format_temp(self.hass, device.water_temp)} °C"
         age = _format_age(device.age)
         label += f" – vor {age}" if _is_de(self.hass) else f" – {age} ago"
         return label
@@ -383,11 +405,7 @@ class NovoltoMqttConfigFlow(ConfigFlow, domain=DOMAIN):
             user_input,
             {
                 "serial": self._choice.serial,
-                "water_temp": (
-                    f"{self._choice.water_temp:g}"
-                    if self._choice.water_temp is not None
-                    else "?"
-                ),
+                "water_temp": _format_temp(self.hass, self._choice.water_temp),
                 "age": _format_age(self._choice.age),
             },
         )
@@ -433,7 +451,9 @@ class NovoltoMqttConfigFlow(ConfigFlow, domain=DOMAIN):
             if d.serial not in configured and d.base_topic not in topics
         }
         if not self._found:
-            self._none_found = True
+            # Devices found but all set up already -> say so instead of
+            # suggesting the rod might be off.
+            self._none_found = "none_new" if found else "none_found"
             return await self.async_step_manual()
         return await self.async_step_select()
 
@@ -486,8 +506,8 @@ class NovoltoMqttConfigFlow(ConfigFlow, domain=DOMAIN):
         """Enter the device's MQTT topic."""
         errors: dict[str, str] = {}
         if self._none_found:
-            self._none_found = False
-            errors["base"] = "none_found"
+            errors["base"] = self._none_found
+            self._none_found = None
         if user_input is not None:
             topic = normalize_topic(user_input[CONF_TOPIC])
             if not is_valid_topic(topic):
@@ -621,7 +641,7 @@ class NovoltoMqttConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
-            description_placeholders=placeholders,
+            description_placeholders={**_defaults_placeholders(), **placeholders},
         )
 
     @callback
@@ -776,14 +796,26 @@ class NovoltoMqttOptionsFlow(OptionsFlow):
             stages_raw = user_input.get(CONF_POWER_STAGES, "")
             old_model = current[CONF_MODEL]
             # Model changed and stages untouched from the old model's
-            # suggestion -> take the new model's suggestion.
+            # suggestion -> show step 1 again with the new model's suggestion,
+            # so the user sees what will be saved (forms can't update live).
             if (
                 model != old_model
                 and old_model in MODELS
                 and parse_power_stages(stages_raw, 10**6)
                 == list(MODELS[old_model].power_stages)
             ):
-                stages_raw = _stages_text(list(MODELS[model].power_stages))
+                return self._async_show_init(
+                    "init_model",
+                    model,
+                    {
+                        **user_input,
+                        CONF_POWER_STAGES: _stages_text(
+                            list(MODELS[model].power_stages)
+                        ),
+                    },
+                    {},
+                    {**placeholders, "model": MODELS[model].name},
+                )
             stages = parse_power_stages(stages_raw, MODELS[model].max_power)
             if isinstance(stages, str):
                 errors[CONF_POWER_STAGES] = stages
@@ -804,11 +836,25 @@ class NovoltoMqttOptionsFlow(OptionsFlow):
                     return await self.async_step_high_temperature()
                 return await self._async_next()
 
+        return self._async_show_init("init", model, user_input, errors, placeholders)
+
+    async_step_init_model = async_step_init
+
+    def _async_show_init(
+        self,
+        step_id: str,
+        model: str,
+        user_input: dict[str, Any] | None,
+        errors: dict[str, str],
+        placeholders: dict[str, str],
+    ) -> ConfigFlowResult:
+        """Form of step 1 (also shown again after a model change)."""
+        current = self._options
         stages_default = (user_input or {}).get(
             CONF_POWER_STAGES, _stages_text(current[CONF_POWER_STAGES])
         )
         return self.async_show_form(
-            step_id="init",
+            step_id=step_id,
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_POWER_STAGES, default=stages_default): TextSelector(),
@@ -819,7 +865,10 @@ class NovoltoMqttOptionsFlow(OptionsFlow):
                             CONF_SPTW_MAX, current[CONF_SPTW_MAX]
                         ),
                     ): _temperature_selector(LIMIT_SPTW),
-                    vol.Required(CONF_EDIT_ADVANCED, default=False): bool,
+                    vol.Required(
+                        CONF_EDIT_ADVANCED,
+                        default=bool((user_input or {}).get(CONF_EDIT_ADVANCED)),
+                    ): bool,
                 }
             ),
             errors=errors,

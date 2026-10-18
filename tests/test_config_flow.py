@@ -161,6 +161,10 @@ async def test_discovery_creates_entry(hass: HomeAssistant, mqtt_mock) -> None:
     assert placeholders["serial"] == BASE
     assert placeholders["water_temp"] == "23.8"
     assert placeholders["age"].endswith(" s")
+    assert placeholders["default_sptw_max"] == "50"
+    assert placeholders["default_sptwh_max"] == "10"
+    assert placeholders["stages_p3000"] == "0, 1000, 2000, 3000"
+    assert placeholders["stages_p2300"] == "0, 1000, 2000, 2300"
 
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {"name": "Heizstab Keller", "model": "p3000"}
@@ -311,7 +315,7 @@ async def test_search_german_labels(hass: HomeAssistant, mqtt_mock) -> None:
     result = await start_user(hass)
     result = await finish_progress(hass, result, [(f"{BASE}/info", telegram(age=4), False)])
     options = result["data_schema"].schema["device"].config["options"]
-    assert options[0]["label"].startswith(f"{BASE} – 23.8 °C – vor ")
+    assert options[0]["label"].startswith(f"{BASE} – 23,8 °C – vor ")
     assert options[1]["label"] == "Topic selbst eingeben …"
 
 
@@ -320,6 +324,13 @@ async def test_search_skips_configured_devices(hass: HomeAssistant, mqtt_mock) -
     result = await start_user(hass)
     result = await finish_progress(hass, result, [(f"{BASE}/info", telegram(), False)])
     # only the configured device was found -> straight to manual entry
+    assert result["step_id"] == "manual"
+    assert result["errors"] == {"base": "none_new"}
+
+
+async def test_search_finds_nothing(hass: HomeAssistant, mqtt_mock) -> None:
+    result = await start_user(hass)
+    result = await finish_progress(hass, result, [])
     assert result["step_id"] == "manual"
     assert result["errors"] == {"base": "none_found"}
 

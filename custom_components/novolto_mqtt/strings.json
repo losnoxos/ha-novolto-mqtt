@@ -4,7 +4,7 @@
     "step": {
       "discovery_confirm": {
         "title": "Novolto heating rod found",
-        "description": "Serial number: **{serial}** · Water temperature: {water_temp} °C · last seen: {age} ago. Choose a name and the model.",
+        "description": "Serial number: **{serial}** · Water temperature: {water_temp} °C · last seen: {age} ago. Choose a name and the model.\n\nDefaults after setup: maximum target temperature {default_sptw_max} °C · switching differential up to {default_sptwh_max} °C · power stages {stages_p3000} W (P2300: {stages_p2300} W). You can change them any time under \"Configure\".",
         "data": {
           "name": "Name",
           "model": "Model"
@@ -16,7 +16,7 @@
       },
       "discovery_confirm_offline": {
         "title": "Novolto heating rod found",
-        "description": "Serial number: **{serial}** · Water temperature: {water_temp} °C · last seen: {age} ago. Choose a name and the model.\n\nCaution: The heating rod hasn't reported for {age} and is probably switched off right now. You can set it up anyway.",
+        "description": "Serial number: **{serial}** · Water temperature: {water_temp} °C · last seen: {age} ago. Choose a name and the model.\n\nDefaults after setup: maximum target temperature {default_sptw_max} °C · switching differential up to {default_sptwh_max} °C · power stages {stages_p3000} W (P2300: {stages_p2300} W). You can change them any time under \"Configure\".\n\nCaution: The heating rod hasn't reported for {age} and is probably switched off right now. You can set it up anyway.",
         "data": {
           "name": "Name",
           "model": "Model"
@@ -28,7 +28,7 @@
       },
       "select": {
         "title": "Select heating rod",
-        "description": "{count} heating rod(s) found. Not listed? Check that the heating rod is switched on and connected to the broker ([guide]({readme_url})), or enter the topic yourself.",
+        "description": "Heating rods found: {count}. Not listed? Check that the heating rod is switched on and connected to the broker ([guide]({readme_url})), or enter the topic yourself.",
         "data": {
           "device": "Heating rod"
         }
@@ -44,8 +44,8 @@
         }
       },
       "no_data": {
-        "title": "No data on {topic}",
-        "description": "No message from this heating rod within 35 seconds. Common causes: typo in the topic · heating rod off or without network connection (WiFi or LAN cable) · heating rod sends to a different MQTT broker · wrong user or password in the configuration of the heating rod.",
+        "title": "No data received",
+        "description": "No message from a heating rod on **{topic}** within 35 seconds. Common causes: typo in the topic · heating rod off or without network connection (WiFi or LAN cable) · heating rod sends to a different MQTT broker · wrong user or password in the configuration of the heating rod.",
         "menu_options": {
           "manual": "Correct topic",
           "search": "Search again",
@@ -53,8 +53,8 @@
         }
       },
       "no_data_case": {
-        "title": "No data on {topic}",
-        "description": "No message from this heating rod within 35 seconds. Common causes: typo in the topic · heating rod off or without network connection (WiFi or LAN cable) · heating rod sends to a different MQTT broker · wrong user or password in the configuration of the heating rod. Found was **{found}** – did you mean this one?",
+        "title": "No data received",
+        "description": "No message from a heating rod on **{topic}** within 35 seconds. Common causes: typo in the topic · heating rod off or without network connection (WiFi or LAN cable) · heating rod sends to a different MQTT broker · wrong user or password in the configuration of the heating rod. Found was **{found}** – did you mean this one?",
         "menu_options": {
           "manual": "Correct topic",
           "search": "Search again",
@@ -67,6 +67,7 @@
       },
       "device": {
         "title": "Name and model",
+        "description": "Defaults after setup: maximum target temperature {default_sptw_max} °C · switching differential up to {default_sptwh_max} °C · power stages {stages_p3000} W (P2300: {stages_p2300} W). You can change them any time under \"Configure\".",
         "data": {
           "name": "Name",
           "model": "Model"
@@ -97,7 +98,8 @@
       "name_taken": "Another heating rod already uses this name. Please choose a different name.",
       "name_required": "Please enter a name.",
       "topic_in_use": "Another heating rod is already set up with this topic.",
-      "other_device": "A different heating rod ({serial}) sends on this topic. Please enter the correct topic."
+      "other_device": "A different heating rod ({serial}) sends on this topic. Please enter the correct topic.",
+      "none_new": "No new heating rod found – heating rods already set up are not listed here. For another heating rod: check that it is switched on and connected to the broker, or enter the topic yourself."
     },
     "abort": {
       "mqtt_not_configured": "Home Assistant needs an MQTT broker and the MQTT integration first. How to: 1. [Install and start the Mosquitto broker add-on]({addon_url}) 2. [Set up the MQTT integration]({mqtt_url}) 3. Connect the heating rod to the broker ([guide]({readme_url})). Then add this integration again.",
@@ -113,6 +115,21 @@
       "init": {
         "title": "Settings",
         "description": "Advanced settings (view only): power step {power_step} W · \"Heating\" threshold {threshold} W · target temperature min. {sptw_min} °C · switching differential {sptwh_min}–{sptwh_max} °C · timeout {timeout} s · topics {topic_info} / {topic_control}",
+        "data": {
+          "power_stages": "Power stages (W)",
+          "model": "Model",
+          "sptw_max": "Maximum target temperature (°C)",
+          "edit_advanced": "Edit advanced settings"
+        },
+        "data_description": {
+          "power_stages": "Values in watts, separated by commas, e.g. `0, 1000, 2000, 3000`. 0 means off. Note: the heating rod reaches in-between values (e.g. 1500 W) by switching between whole 1000 W stages - the actual power then fluctuates (e.g. 1500 W → 1000–2000 W). For a steady grid load use whole stages only.",
+          "model": "Sets the defaults for the heating rod (maximum power, suggested power stages).",
+          "sptw_max": "The target temperature can't be set higher - neither in the dashboard nor by automations. The water gets up to switching differential/2 warmer than set."
+        }
+      },
+      "init_model": {
+        "title": "Settings",
+        "description": "Model changed to {model} – the power stages have been adjusted. Please check and save with OK.",
         "data": {
           "power_stages": "Power stages (W)",
           "model": "Model",
@@ -191,7 +208,8 @@
       "power_stage": {
         "name": "Power stage",
         "state": {
-          "off": "Off"
+          "off": "Off",
+          "custom": "Custom value"
         }
       }
     },

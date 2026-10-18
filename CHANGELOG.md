@@ -3,6 +3,27 @@
 All notable changes to this project are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.1] - 2026-10-18
+
+### Fixed
+- Setup: the title of the "no data" step showed a translation error instead
+  of the topic; it now reads "No data received" and names the topic in the
+  text.
+- The "Power stage" select showed "unknown" while the target power matched
+  none of the stages; it now shows "Custom value" (choosing it changes
+  nothing).
+- The search no longer claims "No heating rod found" when the only heating
+  rods found are already set up; it says so instead.
+- Water temperatures in the setup are shown with one decimal (decimal comma
+  in German).
+
+### Changed
+- Options: changing the model shows the settings again with the new model's
+  power stages, so you see what will be saved; the second OK saves.
+- Setup shows the defaults that apply after setup (maximum target
+  temperature, switching differential, power stages).
+- Search result reads "Heating rods found: n".
+
 ## [0.6.0] - 2026-10-18
 
 ### Breaking

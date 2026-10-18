@@ -201,10 +201,14 @@ Settings → Devices & services → Novolto MQTT → **Configure**:
 
 - **Power stages:** values for the "Power stage" select, e.g.
   `0, 1000, 2000, 3000`. 0 must be included. An empty list hides the select.
+  If the target power matches none of the stages (e.g. set by an
+  automation), the select shows "Custom value".
   The heating rod makes in-between values like 1500 W fluctuate between the
   whole stages (see [Operation](#operation)), so for a steady grid load enter
   whole stages only.
-- **Model:** P2300 or P3000, sets the maximum power.
+- **Model:** P2300 or P3000, sets the maximum power. After changing the
+  model the settings are shown again with the new model's power stages;
+  the second OK saves.
 - **Maximum target temperature:** see [Operation](#operation).
 - **Advanced settings** (only after ticking the box): target power step,
   "Heating" threshold, minimum target temperature, switching differential
@@ -238,7 +242,7 @@ energy counter. Use different names, e.g. "Heating rod basement" and
 |---|---|---|
 | "Home Assistant needs an MQTT broker …" | MQTT missing | Step 1 |
 | Search finds nothing | Heating rod off, different broker, wrong user/password | Check steps 2 and 3 |
-| "No data on …" | Typo in the topic (upper/lower case!) | Copy the topic from the heating rod's configuration |
+| "No data received" | Typo in the topic (upper/lower case!) | Copy the topic from the heating rod's configuration |
 | Everything "Unavailable" | Heating rod off or no network | Check power and WiFi/LAN. After an HA restart it takes up to 30 s |
 | Target temperature set, nothing happens | Target power is 0 W | Raise the power |
 | Integration missing in the list | HA not restarted after the HACS download | Restart, Ctrl+F5 |
