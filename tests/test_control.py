@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 
@@ -86,7 +85,7 @@ async def test_set_hysteresis_publishes_float(
     assert f'"value": {expected_raw}}}' in raw
 
 
-@pytest.mark.parametrize(("value", "expected_raw"), [(45, "45.0"), (52.5, "52.5")])
+@pytest.mark.parametrize(("value", "expected_raw"), [(45, "45.0"), (48.5, "48.5")])
 async def test_water_heater_set_temperature_publishes_float(
     hass: HomeAssistant, mqtt_mock, value, expected_raw
 ) -> None:
@@ -104,16 +103,16 @@ async def test_water_heater_set_temperature_publishes_float(
     assert payload["sensor"][0]["name"] == "sptw"
     assert type(payload["sensor"][0]["value"]) is float
     assert f'"value": {expected_raw}}}' in raw
-    # state only changes once the device confirms via the next telegram
+    # shown right away (optimistic), then confirmed by the next telegram
     wh = hass.states.get("water_heater.novolto_test")
-    assert wh.attributes["temperature"] == 38.0
+    assert wh.attributes["temperature"] == float(value)
     fire(hass, {**FULL_TELEGRAM, "sptw": float(value)})
     await hass.async_block_till_done()
     wh = hass.states.get("water_heater.novolto_test")
     assert wh.attributes["temperature"] == float(value)
 
 
-@pytest.mark.parametrize("value", [95, 80.5, -10, -0.1])
+@pytest.mark.parametrize("value", [95, 50.5, -10, -0.1])
 async def test_water_heater_set_temperature_out_of_range(
     hass: HomeAssistant, mqtt_mock, value
 ) -> None:
@@ -129,11 +128,11 @@ async def test_water_heater_set_temperature_out_of_range(
         )
     assert exc.value.translation_key == "temperature_out_of_range"
     assert exc.value.translation_domain == "novolto_mqtt"
-    assert "outside the allowed range" in str(exc.value)
+    assert "integration options" in str(exc.value)
     mqtt_mock.async_publish.assert_not_called()
 
 
-@pytest.mark.parametrize("value", [0, 80])
+@pytest.mark.parametrize("value", [0, 50])
 async def test_water_heater_set_temperature_limits_inclusive(
     hass: HomeAssistant, mqtt_mock, value
 ) -> None:

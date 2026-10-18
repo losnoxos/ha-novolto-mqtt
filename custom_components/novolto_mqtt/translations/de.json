@@ -1,52 +1,228 @@
 {
   "config": {
+    "flow_title": "Novolto-Heizstab {serial}",
     "step": {
-      "user": {
-        "title": "Novolto Heizstab hinzufügen",
-        "description": "MQTT-Base-Topic des Geräts eingeben (die Seriennummer, z.B. AAA.BBB.123456 - sichtbar im MQTT Explorer) sowie optional einen Anzeigenamen.",
+      "discovery_confirm": {
+        "title": "Novolto-Heizstab gefunden",
+        "description": "Seriennummer: **{serial}** · Wassertemperatur: {water_temp} °C · zuletzt gesehen: vor {age}. Vergib einen Namen und wähle das Modell.",
         "data": {
-          "base_topic": "Base Topic (Geräte-Serial)",
-          "name": "Name"
+          "name": "Name",
+          "model": "Modell"
+        },
+        "data_description": {
+          "name": "Erscheint im Dashboard und bestimmt die Entity-IDs (z. B. `water_heater.novolto_p3000`). Bei mehreren Heizstäben unterschiedliche Namen wählen, z. B. „Heizstab Keller“. Ein späteres Umbenennen ändert die Entity-IDs nicht.",
+          "model": "Steht auf dem Typenschild. Legt die Standardwerte fest, z. B. die maximale Leistung (P2300: 2300 W, P3000: 3000 W)."
+        }
+      },
+      "discovery_confirm_offline": {
+        "title": "Novolto-Heizstab gefunden",
+        "description": "Seriennummer: **{serial}** · Wassertemperatur: {water_temp} °C · zuletzt gesehen: vor {age}. Vergib einen Namen und wähle das Modell.\n\nAchtung: Der Heizstab hat sich seit {age} nicht gemeldet und ist vermutlich gerade aus. Du kannst ihn trotzdem einrichten.",
+        "data": {
+          "name": "Name",
+          "model": "Modell"
+        },
+        "data_description": {
+          "name": "Erscheint im Dashboard und bestimmt die Entity-IDs (z. B. `water_heater.novolto_p3000`). Bei mehreren Heizstäben unterschiedliche Namen wählen, z. B. „Heizstab Keller“. Ein späteres Umbenennen ändert die Entity-IDs nicht.",
+          "model": "Steht auf dem Typenschild. Legt die Standardwerte fest, z. B. die maximale Leistung (P2300: 2300 W, P3000: 3000 W)."
+        }
+      },
+      "select": {
+        "title": "Heizstab auswählen",
+        "description": "{count} Heizstab/Heizstäbe gefunden. Nicht dabei? Prüfe, ob der Heizstab eingeschaltet und mit dem Broker verbunden ist ([Anleitung]({readme_url})), oder gib das Topic selbst ein.",
+        "data": {
+          "device": "Heizstab"
+        }
+      },
+      "manual": {
+        "title": "MQTT-Topic eingeben",
+        "description": "Das MQTT-Topic steht in der Konfiguration des Heizstabs unter den MQTT-Einstellungen. Ohne Änderung ist es die Seriennummer im Format `AAA.BBB.123456` (Groß- und Kleinschreibung beachten). So kommst du in die Konfiguration: Taste am Heizstab 1× kurz drücken → der Heizstab öffnet einen WLAN-Hotspot → darüber die Konfiguration aufrufen (Zugangsdaten gibt es bei Novolto).",
+        "data": {
+          "topic": "MQTT-Topic"
+        },
+        "data_description": {
+          "topic": "Nur das Topic, ohne `/info` am Ende und ohne Leerzeichen."
+        }
+      },
+      "no_data": {
+        "title": "Keine Daten unter {topic}",
+        "description": "In 35 Sekunden kam keine Nachricht von diesem Heizstab. Häufige Ursachen: Tippfehler im Topic · Heizstab aus oder ohne Netzwerkverbindung (WLAN bzw. LAN-Kabel) · Heizstab sendet an einen anderen MQTT-Broker · falscher Benutzer oder falsches Passwort in der Konfiguration des Heizstabs.",
+        "menu_options": {
+          "manual": "Topic korrigieren",
+          "search": "Erneut suchen",
+          "anyway": "Trotzdem einrichten"
+        }
+      },
+      "no_data_case": {
+        "title": "Keine Daten unter {topic}",
+        "description": "In 35 Sekunden kam keine Nachricht von diesem Heizstab. Häufige Ursachen: Tippfehler im Topic · Heizstab aus oder ohne Netzwerkverbindung (WLAN bzw. LAN-Kabel) · Heizstab sendet an einen anderen MQTT-Broker · falscher Benutzer oder falsches Passwort in der Konfiguration des Heizstabs. Gefunden wurde **{found}** – meintest du diesen?",
+        "menu_options": {
+          "manual": "Topic korrigieren",
+          "search": "Erneut suchen",
+          "anyway": "Trotzdem einrichten"
+        }
+      },
+      "anyway": {
+        "title": "Ohne Verbindung einrichten?",
+        "description": "Alle Werte bleiben „Nicht verfügbar“, bis der Heizstab sendet. Kommen nach 10 Minuten noch keine Daten, erscheint eine Meldung unter Einstellungen → Reparaturen."
+      },
+      "device": {
+        "title": "Name und Modell",
+        "data": {
+          "name": "Name",
+          "model": "Modell"
+        },
+        "data_description": {
+          "name": "Erscheint im Dashboard und bestimmt die Entity-IDs (z. B. `water_heater.novolto_p3000`). Bei mehreren Heizstäben unterschiedliche Namen wählen, z. B. „Heizstab Keller“. Ein späteres Umbenennen ändert die Entity-IDs nicht.",
+          "model": "Steht auf dem Typenschild. Legt die Standardwerte fest, z. B. die maximale Leistung (P2300: 2300 W, P3000: 3000 W)."
+        }
+      },
+      "reconfigure": {
+        "title": "MQTT-Topic ändern",
+        "description": "Nur nötig, wenn du das Topic in der Konfiguration des Heizstabs geändert hast. Gerät, Entitäten und Energiezähler bleiben erhalten.",
+        "data": {
+          "topic": "MQTT-Topic"
+        },
+        "data_description": {
+          "topic": "Nur das Topic, ohne `/info` am Ende und ohne Leerzeichen."
         }
       }
     },
+    "progress": {
+      "search": "Suche nach Novolto-Heizstäben … Das kann bis zu 35 Sekunden dauern, weil der Heizstab nur alle 30 Sekunden Messwerte sendet.",
+      "listen": "Warte auf Daten vom Heizstab … Das kann bis zu 35 Sekunden dauern, weil der Heizstab nur alle 30 Sekunden Messwerte sendet."
+    },
     "error": {
-      "invalid_base_topic": "Base Topic des Geräts (Seriennummer) ohne MQTT-Platzhalter (+ oder #) eingeben."
+      "invalid_topic": "Das sieht nicht nach einem gültigen Topic aus. Bitte ohne Leerzeichen, `+` oder `#` und ohne `/info` am Ende eingeben.",
+      "none_found": "Kein Heizstab gefunden. Prüfe, ob er eingeschaltet und mit dem Broker verbunden ist, oder gib das Topic selbst ein.",
+      "name_taken": "Diesen Namen verwendet bereits ein anderer Heizstab. Bitte einen anderen Namen wählen.",
+      "name_required": "Bitte einen Namen eingeben.",
+      "topic_in_use": "Mit diesem Topic ist bereits ein anderer Heizstab eingerichtet.",
+      "other_device": "Unter diesem Topic sendet ein anderer Heizstab ({serial}). Bitte das richtige Topic eingeben."
     },
     "abort": {
-      "already_configured": "Dieses Gerät ist bereits eingerichtet.",
-      "mqtt_not_configured": "Die MQTT-Integration muss zuerst eingerichtet werden."
+      "mqtt_not_configured": "Home Assistant braucht zuerst einen MQTT-Broker und die MQTT-Integration. So geht's: 1. [Mosquitto-Broker-Add-on installieren und starten]({addon_url}) 2. [MQTT-Integration einrichten]({mqtt_url}) 3. Den Heizstab mit dem Broker verbinden ([Anleitung]({readme_url})). Danach diese Integration erneut hinzufügen.",
+      "mqtt_not_connected": "Die MQTT-Integration ist eingerichtet, aber nicht mit dem Broker verbunden. Prüfe, ob das Mosquitto-Add-on läuft und die MQTT-Integration keinen Fehler anzeigt.",
+      "already_configured": "Dieser Heizstab ist bereits eingerichtet.",
+      "already_in_progress": "Die Einrichtung dieses Heizstabs läuft bereits.",
+      "not_novolto_device": "Das gefundene Gerät ist kein Novolto-Heizstab.",
+      "reconfigure_successful": "Das MQTT-Topic wurde geändert."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Novolto MQTT Einstellungen",
+        "title": "Einstellungen",
+        "description": "Erweiterte Einstellungen (nur Ansicht): Schrittweite {power_step} W · Schwellwert „Heizt“ {threshold} W · Solltemperatur min. {sptw_min} °C · Schaltdifferenz {sptwh_min}–{sptwh_max} °C · Timeout {timeout} s · Topics {topic_info} / {topic_control}",
         "data": {
-          "topic_info": "Info-Topic (Suffix)",
-          "topic_control": "Control-Topic (Suffix)",
-          "max_power": "Maximale Leistung (W)",
-          "power_step": "Leistungs-Schrittweite (W)",
-          "heating_threshold_w": "Schwellwert \"Heizt gerade\" (W)",
-          "enable_board_temperature": "Board-/Elektroniktemperatur-Sensor aktivieren",
-          "sptw_min": "Minimale Solltemperatur (°C)",
+          "power_stages": "Leistungsstufen (W)",
+          "model": "Modell",
           "sptw_max": "Maximale Solltemperatur (°C)",
-          "sptwh_min": "Minimale Hysterese (°C)",
-          "sptwh_max": "Maximale Hysterese (°C)",
-          "timeout_seconds": "Verfügbarkeits-Timeout (s)"
+          "edit_advanced": "Erweiterte Einstellungen bearbeiten"
+        },
+        "data_description": {
+          "power_stages": "Werte in Watt, durch Komma getrennt, z. B. `0, 1000, 2000, 3000`. 0 bedeutet Aus. Hinweis: Zwischenwerte (z. B. 1500 W) erreicht der Heizstab, indem er zwischen ganzen 1000-W-Stufen taktet – die tatsächliche Leistung pendelt dann (z. B. 1500 W → 1000–2000 W). Für eine ruhige Netzlast nur ganze Stufen verwenden.",
+          "model": "Setzt die Standardwerte passend zum Heizstab (maximale Leistung, vorgeschlagene Leistungsstufen).",
+          "sptw_max": "Höher lässt sich die Solltemperatur nicht einstellen – weder im Dashboard noch per Automation. Das Wasser wird bis zu Schaltdifferenz/2 wärmer als eingestellt."
+        }
+      },
+      "high_temperature": {
+        "title": "Vorsicht: hohe Wassertemperatur",
+        "description": "Du hast eine maximale Solltemperatur von {temperature} °C gewählt. Wassertemperaturen über 50 °C können an der Zapfstelle zu Verbrühungen führen. Das Wasser wird zusätzlich bis zu Schaltdifferenz/2 wärmer als eingestellt. Nur bestätigen, wenn eine Absicherung vorhanden ist (z. B. Mischventil/Verbrühschutz).",
+        "data": {
+          "sptw_max": "Maximale Solltemperatur (°C)",
+          "confirm": "Ich habe den Hinweis verstanden"
+        }
+      },
+      "advanced": {
+        "title": "Erweiterte Einstellungen",
+        "description": "⚠ Vorsicht: Falsche Werte können zu ungewolltem Verhalten und Problemen führen. Nur ändern, wenn du weißt, was du tust.",
+        "data": {
+          "power_step": "Schrittweite Sollleistung (W)",
+          "heating_threshold_w": "Schwellwert „Heizt“ (W)",
+          "sptw_min": "Minimale Solltemperatur (°C)",
+          "sptwh_min": "Schaltdifferenz min. (°C)",
+          "sptwh_max": "Schaltdifferenz max. (°C)",
+          "timeout_seconds": "Verfügbarkeits-Timeout (s)",
+          "topic_info": "Info-Topic",
+          "topic_control": "Control-Topic",
+          "reset_defaults": "Auf Standardwerte zurücksetzen"
+        },
+        "data_description": {
+          "power_step": "Raster des Sollleistungs-Reglers.",
+          "heating_threshold_w": "Ab dieser gemessenen Leistung gilt der Heizstab als „Heizt“.",
+          "sptw_min": "Niedrigster einstellbarer Sollwert.",
+          "sptwh_min": "Bereich des Schaltdifferenz-Reglers.",
+          "sptwh_max": "Bereich des Schaltdifferenz-Reglers. Beispiel: 60 °C Soll und 10 °C Schaltdifferenz → heizt unter 55 °C, stoppt über 65 °C.",
+          "timeout_seconds": "So lange ohne Nachricht, bis der Heizstab als „Nicht verfügbar“ gilt. Es wird immer mindestens das Dreifache des Messintervalls gewartet.",
+          "topic_info": "Nur ändern, wenn der Heizstab andere Topic-Namen verwendet.",
+          "topic_control": "Nur ändern, wenn der Heizstab andere Topic-Namen verwendet.",
+          "reset_defaults": "Setzt alle erweiterten Werte auf die Standardwerte zurück."
         }
       }
     },
     "error": {
-      "invalid_topic": "Topic-Suffix ohne MQTT-Platzhalter (+ oder #) eingeben.",
+      "stages_invalid": "Nur ganze Zahlen zwischen 0 und {max_power} W, durch Komma getrennt.",
+      "stages_no_zero": "Die Liste muss 0 enthalten, sonst lässt sich der Heizstab über die Leistungsstufe nicht ausschalten.",
+      "confirm_required": "Bitte bestätigen oder einen Wert bis 50 °C wählen.",
+      "invalid_topic_suffix": "Bitte einen Namen ohne Leerzeichen, `/`, `+` oder `#` eingeben.",
       "same_topic": "Info- und Control-Topic müssen sich unterscheiden.",
       "min_not_below_max": "Das Maximum muss größer als das Minimum sein."
     }
   },
+  "selector": {
+    "model": {
+      "options": {
+        "p3000": "P3000",
+        "p2300": "P2300"
+      }
+    }
+  },
   "entity": {
+    "water_heater": {
+      "novolto": {
+        "state": {
+          "heating": "Heizt",
+          "idle": "Bereit",
+          "off": "Aus (0 W)"
+        }
+      }
+    },
+    "select": {
+      "power_stage": {
+        "name": "Leistungsstufe",
+        "state": {
+          "off": "Aus"
+        }
+      }
+    },
+    "number": {
+      "target_power": {
+        "name": "Sollleistung"
+      },
+      "water_hysteresis": {
+        "name": "Schaltdifferenz (Hysterese)"
+      }
+    },
+    "binary_sensor": {
+      "heating": {
+        "name": "Heizt"
+      },
+      "rod_status": {
+        "name": "Heizstab-Freigabe (Rohwert)"
+      }
+    },
     "sensor": {
       "power": {
         "name": "Leistung"
+      },
+      "energy": {
+        "name": "Energie"
+      },
+      "water_temperature": {
+        "name": "Wassertemperatur"
+      },
+      "board_temperature": {
+        "name": "Elektroniktemperatur"
       },
       "voltage": {
         "name": "Spannung"
@@ -57,11 +233,23 @@
       "frequency": {
         "name": "Frequenz"
       },
-      "water_temperature": {
-        "name": "Wassertemperatur"
-      },
-      "board_temperature": {
-        "name": "Elektroniktemperatur"
+      "status": {
+        "name": "Status",
+        "state": {
+          "ok": "OK",
+          "sensor_missing": "Temperaturfühler fehlt",
+          "water_temp_read_fail": "Wassertemperatur nicht lesbar",
+          "meter_reading_mismatch": "Messwerte unplausibel",
+          "fan_rpm_mismatch": "Lüfterdrehzahl unplausibel",
+          "board_temp_exceeded": "Elektronik zu heiß",
+          "board_temp_read_fail": "Elektroniktemperatur nicht lesbar",
+          "meter_read_fail": "Messung fehlgeschlagen",
+          "hub_disconnected": "Verbindung zum Hub getrennt",
+          "power_freq_mismatch": "Netzfrequenz unplausibel",
+          "missing_settings": "Einstellungen fehlen",
+          "stb_tripped": "Sicherheitstemperaturbegrenzer ausgelöst",
+          "unknown_bit": "Unbekannt"
+        }
       },
       "rssi": {
         "name": "WLAN-Signal"
@@ -69,17 +257,11 @@
       "measurement_interval": {
         "name": "Messintervall"
       },
-      "status": {
-        "name": "Status"
-      },
-      "energy": {
-        "name": "Energie"
-      },
       "status_raw": {
         "name": "Status Rohwert"
       },
       "rod_status_raw": {
-        "name": "Rod Status Rohwert"
+        "name": "Heizstab-Freigabe Rohwert"
       },
       "triacon_raw": {
         "name": "Triacon Rohwert"
@@ -90,27 +272,45 @@
       "heating_stage_2_raw": {
         "name": "Heizstufe 2 Rohwert"
       }
-    },
-    "binary_sensor": {
-      "heating": {
-        "name": "Heizt"
-      },
-      "rod_status": {
-        "name": "Rod Status"
-      }
-    },
-    "number": {
-      "target_power": {
-        "name": "Sollleistung"
-      },
-      "water_hysteresis": {
-        "name": "Hysterese"
-      }
     }
   },
   "exceptions": {
     "temperature_out_of_range": {
-      "message": "Solltemperatur {temperature} °C liegt außerhalb des erlaubten Bereichs von {min_temp}–{max_temp} °C."
+      "message": "Solltemperatur {temperature} °C liegt außerhalb von {min_temp}–{max_temp} °C. Die Grenzen lassen sich in den Integrationsoptionen ändern."
+    },
+    "device_offline": {
+      "message": "{name} ist nicht erreichbar – die Einstellung wurde nicht gesendet."
+    },
+    "mqtt_unavailable": {
+      "message": "MQTT-Broker nicht erreichbar, neuer Versuch folgt automatisch."
+    }
+  },
+  "issues": {
+    "no_data": {
+      "title": "{name} sendet keine Daten",
+      "description": "Seit {minutes} Minuten keine Messwerte. Prüfe Strom, Netzwerkverbindung (WLAN oder LAN) und die MQTT-Einstellungen in der Konfiguration des Heizstabs. Hinweis: Ohne Verbindung heizt der Heizstab mit den zuletzt gesetzten Werten weiter."
+    },
+    "setting_rejected": {
+      "title": "{name} hat eine Einstellung abgelehnt",
+      "description": "Fehlercode {ret}: {s_err}. Der vorherige Wert bleibt aktiv."
+    },
+    "stale_retained": {
+      "title": "{name}: veraltete gespeicherte Nachricht auf dem Broker",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Gespeicherte Nachricht löschen?",
+            "description": "Der MQTT-Broker hat eine alte Nachricht dieses Heizstabs gespeichert (vom {date}). Sie wird nach jedem Neustart von Home Assistant kurz angezeigt, weil „Retain“ im Heizstab inzwischen ausgeschaltet ist. Mit dem Bestätigen wird die gespeicherte Nachricht gelöscht. Am Heizstab ändert sich nichts."
+          }
+        },
+        "abort": {
+          "device_not_loaded": "Der Heizstab ist gerade nicht geladen. Bitte später erneut versuchen."
+        }
+      }
+    },
+    "stb_tripped": {
+      "title": "{name}: Sicherheitstemperaturbegrenzer ausgelöst",
+      "description": "Der Überhitzungsschutz des Heizstabs hat ausgelöst. Heizstab und Speicher prüfen, ggf. Novolto-Support kontaktieren."
     }
   }
 }

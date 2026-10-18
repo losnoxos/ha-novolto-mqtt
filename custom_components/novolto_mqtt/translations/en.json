@@ -1,52 +1,228 @@
 {
   "config": {
+    "flow_title": "Novolto heating rod {serial}",
     "step": {
-      "user": {
-        "title": "Add Novolto heating rod",
-        "description": "Enter the device's MQTT base topic (its serial number, e.g. AAA.BBB.123456 - visible in MQTT Explorer) and an optional display name.",
+      "discovery_confirm": {
+        "title": "Novolto heating rod found",
+        "description": "Serial number: **{serial}** · Water temperature: {water_temp} °C · last seen: {age} ago. Choose a name and the model.",
         "data": {
-          "base_topic": "Base topic (device serial)",
-          "name": "Name"
+          "name": "Name",
+          "model": "Model"
+        },
+        "data_description": {
+          "name": "Shown in the dashboard and determines the entity IDs (e.g. `water_heater.novolto_p3000`). With several heating rods choose different names, e.g. \"Heating rod basement\". Renaming later does not change the entity IDs.",
+          "model": "See the type plate. Sets the defaults, e.g. the maximum power (P2300: 2300 W, P3000: 3000 W)."
+        }
+      },
+      "discovery_confirm_offline": {
+        "title": "Novolto heating rod found",
+        "description": "Serial number: **{serial}** · Water temperature: {water_temp} °C · last seen: {age} ago. Choose a name and the model.\n\nCaution: The heating rod hasn't reported for {age} and is probably switched off right now. You can set it up anyway.",
+        "data": {
+          "name": "Name",
+          "model": "Model"
+        },
+        "data_description": {
+          "name": "Shown in the dashboard and determines the entity IDs (e.g. `water_heater.novolto_p3000`). With several heating rods choose different names, e.g. \"Heating rod basement\". Renaming later does not change the entity IDs.",
+          "model": "See the type plate. Sets the defaults, e.g. the maximum power (P2300: 2300 W, P3000: 3000 W)."
+        }
+      },
+      "select": {
+        "title": "Select heating rod",
+        "description": "{count} heating rod(s) found. Not listed? Check that the heating rod is switched on and connected to the broker ([guide]({readme_url})), or enter the topic yourself.",
+        "data": {
+          "device": "Heating rod"
+        }
+      },
+      "manual": {
+        "title": "Enter MQTT topic",
+        "description": "The MQTT topic is shown in the configuration of the heating rod under the MQTT settings. Unless changed, it is the serial number in the format `AAA.BBB.123456` (mind upper and lower case). To open the configuration: press the button on the heating rod once briefly → the heating rod opens a WiFi hotspot → open the configuration through it (Novolto provides the login).",
+        "data": {
+          "topic": "MQTT topic"
+        },
+        "data_description": {
+          "topic": "Only the topic, without `/info` at the end and without spaces."
+        }
+      },
+      "no_data": {
+        "title": "No data on {topic}",
+        "description": "No message from this heating rod within 35 seconds. Common causes: typo in the topic · heating rod off or without network connection (WiFi or LAN cable) · heating rod sends to a different MQTT broker · wrong user or password in the configuration of the heating rod.",
+        "menu_options": {
+          "manual": "Correct topic",
+          "search": "Search again",
+          "anyway": "Set up anyway"
+        }
+      },
+      "no_data_case": {
+        "title": "No data on {topic}",
+        "description": "No message from this heating rod within 35 seconds. Common causes: typo in the topic · heating rod off or without network connection (WiFi or LAN cable) · heating rod sends to a different MQTT broker · wrong user or password in the configuration of the heating rod. Found was **{found}** – did you mean this one?",
+        "menu_options": {
+          "manual": "Correct topic",
+          "search": "Search again",
+          "anyway": "Set up anyway"
+        }
+      },
+      "anyway": {
+        "title": "Set up without connection?",
+        "description": "All values stay \"Unavailable\" until the heating rod sends data. If there is still no data after 10 minutes, a message appears under Settings → Repairs."
+      },
+      "device": {
+        "title": "Name and model",
+        "data": {
+          "name": "Name",
+          "model": "Model"
+        },
+        "data_description": {
+          "name": "Shown in the dashboard and determines the entity IDs (e.g. `water_heater.novolto_p3000`). With several heating rods choose different names, e.g. \"Heating rod basement\". Renaming later does not change the entity IDs.",
+          "model": "See the type plate. Sets the defaults, e.g. the maximum power (P2300: 2300 W, P3000: 3000 W)."
+        }
+      },
+      "reconfigure": {
+        "title": "Change MQTT topic",
+        "description": "Only needed if you changed the topic in the configuration of the heating rod. Device, entities and energy counter are kept.",
+        "data": {
+          "topic": "MQTT topic"
+        },
+        "data_description": {
+          "topic": "Only the topic, without `/info` at the end and without spaces."
         }
       }
     },
+    "progress": {
+      "search": "Searching for Novolto heating rods … This can take up to 35 seconds because the heating rod only sends measurements every 30 seconds.",
+      "listen": "Waiting for data from the heating rod … This can take up to 35 seconds because the heating rod only sends measurements every 30 seconds."
+    },
     "error": {
-      "invalid_base_topic": "Enter the device's base topic (its serial number) without MQTT wildcards (+ or #)."
+      "invalid_topic": "That doesn't look like a valid topic. Enter it without spaces, `+` or `#` and without `/info` at the end.",
+      "none_found": "No heating rod found. Check that it is switched on and connected to the broker, or enter the topic yourself.",
+      "name_taken": "Another heating rod already uses this name. Please choose a different name.",
+      "name_required": "Please enter a name.",
+      "topic_in_use": "Another heating rod is already set up with this topic.",
+      "other_device": "A different heating rod ({serial}) sends on this topic. Please enter the correct topic."
     },
     "abort": {
-      "already_configured": "This device is already configured.",
-      "mqtt_not_configured": "The MQTT integration has to be set up first."
+      "mqtt_not_configured": "Home Assistant needs an MQTT broker and the MQTT integration first. How to: 1. [Install and start the Mosquitto broker add-on]({addon_url}) 2. [Set up the MQTT integration]({mqtt_url}) 3. Connect the heating rod to the broker ([guide]({readme_url})). Then add this integration again.",
+      "mqtt_not_connected": "The MQTT integration is set up but not connected to the broker. Check that the Mosquitto add-on is running and the MQTT integration shows no error.",
+      "already_configured": "This heating rod is already set up.",
+      "already_in_progress": "Setup of this heating rod is already in progress.",
+      "not_novolto_device": "The device found is not a Novolto heating rod.",
+      "reconfigure_successful": "The MQTT topic was changed."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Novolto MQTT options",
+        "title": "Settings",
+        "description": "Advanced settings (view only): power step {power_step} W · \"Heating\" threshold {threshold} W · target temperature min. {sptw_min} °C · switching differential {sptwh_min}–{sptwh_max} °C · timeout {timeout} s · topics {topic_info} / {topic_control}",
         "data": {
-          "topic_info": "Info topic suffix",
-          "topic_control": "Control topic suffix",
-          "max_power": "Maximum power (W)",
-          "power_step": "Power step (W)",
-          "heating_threshold_w": "Heating threshold (W)",
-          "enable_board_temperature": "Enable board/electronics temperature sensor",
-          "sptw_min": "Minimum target water temperature (°C)",
-          "sptw_max": "Maximum target water temperature (°C)",
-          "sptwh_min": "Minimum hysteresis (°C)",
-          "sptwh_max": "Maximum hysteresis (°C)",
-          "timeout_seconds": "Availability timeout (s)"
+          "power_stages": "Power stages (W)",
+          "model": "Model",
+          "sptw_max": "Maximum target temperature (°C)",
+          "edit_advanced": "Edit advanced settings"
+        },
+        "data_description": {
+          "power_stages": "Values in watts, separated by commas, e.g. `0, 1000, 2000, 3000`. 0 means off. Note: the heating rod reaches in-between values (e.g. 1500 W) by switching between whole 1000 W stages - the actual power then fluctuates (e.g. 1500 W → 1000–2000 W). For a steady grid load use whole stages only.",
+          "model": "Sets the defaults for the heating rod (maximum power, suggested power stages).",
+          "sptw_max": "The target temperature can't be set higher - neither in the dashboard nor by automations. The water gets up to switching differential/2 warmer than set."
+        }
+      },
+      "high_temperature": {
+        "title": "Caution: high water temperature",
+        "description": "You chose a maximum target temperature of {temperature} °C. Water temperatures above 50 °C can cause scalding at the tap. In addition, the water gets up to switching differential/2 warmer than set. Only confirm if a protection is in place (e.g. mixing valve/anti-scald device).",
+        "data": {
+          "sptw_max": "Maximum target temperature (°C)",
+          "confirm": "I understand the warning"
+        }
+      },
+      "advanced": {
+        "title": "Advanced settings",
+        "description": "⚠ Caution: wrong values can lead to unwanted behaviour and problems. Only change them if you know what you are doing.",
+        "data": {
+          "power_step": "Target power step (W)",
+          "heating_threshold_w": "\"Heating\" threshold (W)",
+          "sptw_min": "Minimum target temperature (°C)",
+          "sptwh_min": "Switching differential min. (°C)",
+          "sptwh_max": "Switching differential max. (°C)",
+          "timeout_seconds": "Availability timeout (s)",
+          "topic_info": "Info topic",
+          "topic_control": "Control topic",
+          "reset_defaults": "Reset to defaults"
+        },
+        "data_description": {
+          "power_step": "Step of the target power slider.",
+          "heating_threshold_w": "From this measured power on the heating rod counts as \"Heating\".",
+          "sptw_min": "Lowest target temperature that can be set.",
+          "sptwh_min": "Range of the switching differential slider.",
+          "sptwh_max": "Range of the switching differential slider. Example: 60 °C target and 10 °C switching differential → heats below 55 °C, stops above 65 °C.",
+          "timeout_seconds": "Time without a message until the heating rod counts as \"Unavailable\". At least three times the measurement interval is always waited.",
+          "topic_info": "Only change if the heating rod uses different topic names.",
+          "topic_control": "Only change if the heating rod uses different topic names.",
+          "reset_defaults": "Resets all advanced values to the defaults."
         }
       }
     },
     "error": {
-      "invalid_topic": "Enter a topic suffix without MQTT wildcards (+ or #).",
+      "stages_invalid": "Only whole numbers between 0 and {max_power} W, separated by commas.",
+      "stages_no_zero": "The list must contain 0, otherwise the heating rod can't be switched off via the power stage.",
+      "confirm_required": "Please confirm or choose a value up to 50 °C.",
+      "invalid_topic_suffix": "Please enter a name without spaces, `/`, `+` or `#`.",
       "same_topic": "Info and control topic must be different.",
       "min_not_below_max": "The maximum must be greater than the minimum."
     }
   },
+  "selector": {
+    "model": {
+      "options": {
+        "p3000": "P3000",
+        "p2300": "P2300"
+      }
+    }
+  },
   "entity": {
+    "water_heater": {
+      "novolto": {
+        "state": {
+          "heating": "Heating",
+          "idle": "Ready",
+          "off": "Off (0 W)"
+        }
+      }
+    },
+    "select": {
+      "power_stage": {
+        "name": "Power stage",
+        "state": {
+          "off": "Off"
+        }
+      }
+    },
+    "number": {
+      "target_power": {
+        "name": "Target power"
+      },
+      "water_hysteresis": {
+        "name": "Switching differential (hysteresis)"
+      }
+    },
+    "binary_sensor": {
+      "heating": {
+        "name": "Heating"
+      },
+      "rod_status": {
+        "name": "Rod enable (raw)"
+      }
+    },
     "sensor": {
       "power": {
         "name": "Power"
+      },
+      "energy": {
+        "name": "Energy"
+      },
+      "water_temperature": {
+        "name": "Water temperature"
+      },
+      "board_temperature": {
+        "name": "Electronics temperature"
       },
       "voltage": {
         "name": "Voltage"
@@ -57,11 +233,23 @@
       "frequency": {
         "name": "Frequency"
       },
-      "water_temperature": {
-        "name": "Water temperature"
-      },
-      "board_temperature": {
-        "name": "Board temperature"
+      "status": {
+        "name": "Status",
+        "state": {
+          "ok": "OK",
+          "sensor_missing": "Temperature sensor missing",
+          "water_temp_read_fail": "Water temperature unreadable",
+          "meter_reading_mismatch": "Meter readings implausible",
+          "fan_rpm_mismatch": "Fan speed implausible",
+          "board_temp_exceeded": "Electronics too hot",
+          "board_temp_read_fail": "Electronics temperature unreadable",
+          "meter_read_fail": "Measurement failed",
+          "hub_disconnected": "Hub disconnected",
+          "power_freq_mismatch": "Mains frequency implausible",
+          "missing_settings": "Settings missing",
+          "stb_tripped": "Safety temperature limiter tripped",
+          "unknown_bit": "Unknown"
+        }
       },
       "rssi": {
         "name": "WiFi signal"
@@ -69,17 +257,11 @@
       "measurement_interval": {
         "name": "Measurement interval"
       },
-      "status": {
-        "name": "Status"
-      },
-      "energy": {
-        "name": "Energy"
-      },
       "status_raw": {
         "name": "Status raw"
       },
       "rod_status_raw": {
-        "name": "Rod status raw"
+        "name": "Rod enable raw"
       },
       "triacon_raw": {
         "name": "Triacon raw"
@@ -90,27 +272,45 @@
       "heating_stage_2_raw": {
         "name": "Heating stage 2 raw"
       }
-    },
-    "binary_sensor": {
-      "heating": {
-        "name": "Heating"
-      },
-      "rod_status": {
-        "name": "Rod status"
-      }
-    },
-    "number": {
-      "target_power": {
-        "name": "Target power"
-      },
-      "water_hysteresis": {
-        "name": "Water hysteresis"
-      }
     }
   },
   "exceptions": {
     "temperature_out_of_range": {
-      "message": "Target temperature {temperature} °C is outside the allowed range of {min_temp}–{max_temp} °C."
+      "message": "Target temperature {temperature} °C is outside {min_temp}–{max_temp} °C. The limits can be changed in the integration options."
+    },
+    "device_offline": {
+      "message": "{name} is not reachable - the setting was not sent."
+    },
+    "mqtt_unavailable": {
+      "message": "MQTT broker not reachable, retrying automatically."
+    }
+  },
+  "issues": {
+    "no_data": {
+      "title": "{name} sends no data",
+      "description": "No measurements for {minutes} minutes. Check power, network connection (WiFi or LAN) and the MQTT settings in the configuration of the heating rod. Note: without a connection the heating rod keeps heating with the last values set."
+    },
+    "setting_rejected": {
+      "title": "{name} rejected a setting",
+      "description": "Error code {ret}: {s_err}. The previous value stays active."
+    },
+    "stale_retained": {
+      "title": "{name}: outdated stored message on the broker",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Delete stored message?",
+            "description": "The MQTT broker has stored an old message of this heating rod (from {date}). It is shown briefly after every Home Assistant restart because \"retain\" has since been switched off on the heating rod. Confirming deletes the stored message. Nothing changes on the heating rod."
+          }
+        },
+        "abort": {
+          "device_not_loaded": "The heating rod is not loaded right now. Try again later."
+        }
+      }
+    },
+    "stb_tripped": {
+      "title": "{name}: safety temperature limiter tripped",
+      "description": "The overheating protection of the heating rod has tripped. Check the heating rod and the tank, contact Novolto support if necessary."
     }
   }
 }

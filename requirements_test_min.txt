@@ -1,0 +1,4 @@
+# Test dependencies for the minimum supported Home Assistant version
+# (Python 3.13). Pins Home Assistant 2024.12.5.
+# Run: pip install -r requirements_test_min.txt && pytest
+pytest-homeassistant-custom-component==0.13.195

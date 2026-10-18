@@ -1,12 +1,11 @@
 """Energy integration (trapezoid), gaps and persistence."""
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
-
 from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 

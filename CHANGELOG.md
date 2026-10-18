@@ -3,6 +3,81 @@
 All notable changes to this project are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.6.0] - 2026-10-18
+
+### Breaking
+- The water heater state now shows what the heating rod is doing:
+  `heating`, `idle` ("Ready") or `off` ("Off (0 W)", target power 0 W)
+  instead of the constant `electric`. Automations that use the state need
+  to be adjusted.
+- Removed options: "Maximum power" (now set by the model) and "Enable board
+  temperature sensor" (the electronics temperature sensor now always exists
+  and is enabled, as a regular sensor instead of a diagnostic one).
+- The status sensor is now an enum sensor with translated states
+  (`ok`, `stb_tripped`, `sensor_missing`, ...) instead of an English text.
+  It shows the most important active message; all active messages are in
+  the attribute `active`, unknown bits in `unknown_bits` (hex). Automations
+  that compare the state with the old texts need to be adjusted.
+- Maximum power now follows the model (P2300: 2300 W, P3000: 3000 W). A
+  lower maximum set in the options before is not taken over; restrict the
+  power in automations if needed.
+- After a Home Assistant restart the device stays unavailable until the
+  first live telegram (up to `msi` seconds, 30 s by default). A retained
+  telegram on the broker shows the last values but no longer counts as
+  "device reachable".
+
+### Added
+- Setup without typing: Home Assistant discovers heating rods by itself
+  ("New device found"); "Add integration" searches all topics for 35 s and
+  lists the heating rods found. Telegrams are recognised by content, so
+  freely named and multi-level topics work too.
+- Manual topic entry checks whether data arrives; if not: correct the
+  topic, search again or set up anyway, with a hint on upper/lower case
+  typos. Setup is aborted with links if MQTT isn't set up or connected.
+- Model selection (P2300/P3000) during setup and in the options; it sets
+  the maximum power and the suggested power stages and is shown in the
+  device info.
+- "Power stage" select with configurable stages (default
+  `0, 1000, 2000, 3000`; P2300: `0, 1000, 2000, 2300`).
+- Options in two steps: settings (power stages, model, maximum target
+  temperature) and, only on request, advanced settings behind a warning,
+  including "reset to defaults". Explanations for every field.
+- Maximum target temperature above 50 °C requires a confirmed scalding
+  warning.
+- Repairs: "rejected a setting" (with error code), "safety temperature
+  limiter tripped" (critical) and "sends no data" for devices set up
+  without data.
+- Repair with fix button for an outdated stored (retained) message on the
+  broker, left behind when retain is switched off on the device; confirming
+  the fix deletes it.
+- "Reconfigure" to change the MQTT topic; device, entities and energy
+  counter are kept.
+- Diagnostics download with the serial number redacted.
+- Setup retries (MQTT not ready yet) show a translated reason.
+
+### Changed
+- Sliders show a new value immediately and only jump back if the device
+  rejects it.
+- Setting a value while the device is unreachable raises an error and sends
+  nothing.
+- Raw diagnostic values (status raw, rod enable raw, triacon, heating stage
+  1/2) and the rod enable binary sensor are disabled by default and have a
+  `state_class`, so they no longer flood the logbook. Existing
+  installations keep them enabled; disable them under Settings → Entities if
+  not needed.
+- Entity names: the hysteresis entity is now called "Switching
+  differential (hysteresis)", "Rod status" is now "Rod enable (raw)", "Board
+  temperature" is now "Electronics temperature". Entity IDs don't change.
+- Acknowledgements replayed by the broker (retained) are ignored.
+- New defaults: maximum target temperature 50 °C (was 80 °C), maximum
+  switching differential 10 °C (was 20 °C). Existing installations keep
+  their previous values.
+- The device is identified by the serial number from its telegrams, no
+  longer by its topic. Existing installations are migrated automatically.
+- Internal: device logic separated from the MQTT connection.
+- Tests run against Home Assistant 2024.12 (minimum version) and the
+  current release.
+
 ## [0.5.0] - 2026-10-17
 
 ### Breaking

@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from homeassistant.core import callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity import Entity
 
+from .const import CONF_SERIAL, DOMAIN
 from .device import NovoltoDevice
-from .const import DOMAIN
 
 
 class NovoltoEntity(Entity):
@@ -15,15 +15,19 @@ class NovoltoEntity(Entity):
 
     _attr_has_entity_name = True
     _attr_should_poll = False
+    # Suffix of the unique_id ("<serial>_<suffix>"); set by subclasses.
+    _unique_suffix: str
 
     def __init__(self, device: NovoltoDevice) -> None:
         """Initialize the entity for one Novolto device."""
         self.device = device
+        self._attr_unique_id = f"{device.key}_{self._unique_suffix}"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device.base_topic)},
+            identifiers={(DOMAIN, device.key)},
             name=device.entry.title,
             manufacturer="Novolto",
-            serial_number=device.base_topic,
+            model=device.model.name,
+            serial_number=device.entry.data.get(CONF_SERIAL),
         )
 
     @property

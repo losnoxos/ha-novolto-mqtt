@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr, entity_registry as er
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .conftest import BASE, FULL_TELEGRAM, fire, setup_entry
 
 
 async def test_entity_table(hass: HomeAssistant, mqtt_mock) -> None:
-    entry = await setup_entry(hass, {"enable_board_temperature": True})
+    entry = await setup_entry(hass)
     ent_reg = er.async_get(hass)
     for e in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         if e.disabled_by:
@@ -43,7 +44,7 @@ async def test_entity_table(hass: HomeAssistant, mqtt_mock) -> None:
     print("|---|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         print("| " + " | ".join(str(x) for x in (*r[:8], r[9], r[8])) + " |")
-    assert len(rows) == 20
+    assert len(rows) == 21
     ids = {r[0] for r in rows}
     assert "water_heater.novolto_test" in ids
     assert "binary_sensor.novolto_test_heating" in ids

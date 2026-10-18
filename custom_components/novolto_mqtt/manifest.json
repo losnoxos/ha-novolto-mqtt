@@ -1,13 +1,20 @@
 {
   "domain": "novolto_mqtt",
   "name": "Novolto MQTT",
-  "codeowners": ["@losnoxos"],
+  "codeowners": [
+    "@losnoxos"
+  ],
   "config_flow": true,
-  "dependencies": ["mqtt"],
+  "dependencies": [
+    "mqtt"
+  ],
   "documentation": "https://github.com/losnoxos/ha-novolto-mqtt",
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/losnoxos/ha-novolto-mqtt/issues",
+  "mqtt": [
+    "+/info"
+  ],
   "requirements": [],
-  "version": "0.5.0"
+  "version": "0.6.0"
 }

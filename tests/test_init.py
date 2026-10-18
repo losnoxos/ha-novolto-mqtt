@@ -1,23 +1,19 @@
 """Runtime tests: setup, telegrams, acks, availability, unload."""
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
-
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.util import dt as dt_util
-
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
-
-from custom_components.novolto_mqtt.const import CONF_MAX_POWER
 
 from .conftest import (
     BASE,
@@ -40,18 +36,25 @@ EXPECTED_STATES = {
     ("sensor", "avi"): "1.7",
     ("sensor", "avf"): "50.0",
     ("sensor", "avtw"): "23.8",
-    ("sensor", "st"): "OK",
+    ("sensor", "avt1"): "35",
+    ("sensor", "st"): "ok",
+    ("sensor", "energy"): "0.0",
+    ("binary_sensor", "heating"): "on",
+    ("number", "target_power"): "400",
+    ("number", "water_hysteresis"): "2.0",
+    ("select", "power_stage"): STATE_UNKNOWN,  # 400 W is no stage
+    ("water_heater", "heating"): "heating",
+}
+# Disabled by default; checked with enable_all=True.
+EXPECTED_DISABLED_STATES = {
+    ("sensor", "rssi"): "-60",
+    ("sensor", "msi"): "30",
     ("sensor", "st_raw"): "0",
     ("sensor", "rod_st"): "1",
     ("sensor", "triacon"): "123",
     ("sensor", "r1on"): "1",
     ("sensor", "r2on"): "0",
-    ("sensor", "energy"): "0.0",
-    ("binary_sensor", "heating"): "on",
     ("binary_sensor", "rod_st"): "on",
-    ("number", "target_power"): "400",
-    ("number", "water_hysteresis"): "2.0",
-    ("water_heater", "heating"): "electric",
 }
 
 
@@ -88,12 +91,12 @@ async def test_setup_loads_all_platforms_without_warnings(
 
     entities = er.async_entries_for_config_entry(er.async_get(hass), entry.entry_id)
     assert {e.domain for e in entities} == {
-        "sensor", "binary_sensor", "number", "water_heater"
+        "sensor", "binary_sensor", "number", "select", "water_heater"
     }
-    # 14 sensors (2 disabled by default) + 2 binary sensors + 2 numbers + 1 water heater
-    assert len(entities) == 19
-    assert {e.unique_id for e in entities if e.disabled_by} == {
-        f"{BASE}_rssi", f"{BASE}_msi"
+    # 15 sensors + 2 binary sensors + 2 numbers + 1 select + 1 water heater
+    assert len(entities) == 21
+    assert {(e.domain, e.unique_id) for e in entities if e.disabled_by} == {
+        (domain, f"{BASE}_{suffix}") for domain, suffix in EXPECTED_DISABLED_STATES
     }
     for state in novolto_states(hass):
         assert state.state == STATE_UNAVAILABLE, state.entity_id
@@ -143,7 +146,7 @@ async def test_full_telegram_sets_every_entity(
     assert wh.attributes["current_temperature"] == 23.8
     assert wh.attributes["temperature"] == 38.0
     assert wh.attributes["min_temp"] == 0
-    assert wh.attributes["max_temp"] == 80
+    assert wh.attributes["max_temp"] == 50
     assert hass.states.get(eid(hass, "sensor", "st")).attributes["status_raw"] == 0
     assert not unexpected_warnings(caplog)
 
@@ -151,23 +154,34 @@ async def test_full_telegram_sets_every_entity(
 async def test_disabled_diagnostic_sensors_when_enabled(
     hass: HomeAssistant, mqtt_mock
 ) -> None:
-    entry = await setup_entry(hass)
-    ent_reg = er.async_get(hass)
-    for suffix in ("rssi", "msi"):
-        ent_reg.async_update_entity(eid(hass, "sensor", suffix), disabled_by=None)
-    await hass.config_entries.async_reload(entry.entry_id)
-    await hass.async_block_till_done()
+    await setup_entry(hass, enable_all=True)
     fire(hass, FULL_TELEGRAM)
     await hass.async_block_till_done()
-    assert hass.states.get(eid(hass, "sensor", "rssi")).state == "-60"
-    assert hass.states.get(eid(hass, "sensor", "msi")).state == "30"
+    for (domain, suffix), expected in EXPECTED_DISABLED_STATES.items():
+        assert hass.states.get(eid(hass, domain, suffix)).state == expected, suffix
 
 
-async def test_board_temperature_opt_in(hass: HomeAssistant, mqtt_mock) -> None:
-    await setup_entry(hass, {"enable_board_temperature": True})
+async def test_raw_sensors_have_state_class(hass: HomeAssistant, mqtt_mock) -> None:
+    """Raw values don't flood the logbook (state_class) when enabled."""
+    await setup_entry(hass, enable_all=True)
     fire(hass, FULL_TELEGRAM)
     await hass.async_block_till_done()
-    assert hass.states.get(eid(hass, "sensor", "avt1")).state == "35"
+    for suffix, state_class in (
+        ("st_raw", "measurement"), ("rod_st", "measurement"),
+        ("triacon", "total_increasing"), ("r1on", "measurement"),
+        ("r2on", "measurement"),
+    ):
+        state = hass.states.get(eid(hass, "sensor", suffix))
+        assert state.attributes["state_class"] == state_class, suffix
+
+
+async def test_board_temperature_always_enabled(hass: HomeAssistant, mqtt_mock) -> None:
+    await setup_entry(hass)
+    entity_id = eid(hass, "sensor", "avt1")
+    entry = er.async_get(hass).async_get(entity_id)
+    assert entry.disabled_by is None
+    assert entry.entity_category is None  # a normal sensor, not diagnostic
+    assert entity_id == "sensor.novolto_test_electronics_temperature"
 
 
 async def test_heating_threshold_option(hass: HomeAssistant, mqtt_mock) -> None:
@@ -244,7 +258,7 @@ async def test_partial_first_telegram(hass: HomeAssistant, mqtt_mock) -> None:
     assert hass.states.get(eid(hass, "binary_sensor", "heating")).state == STATE_UNKNOWN
     assert hass.states.get(eid(hass, "number", "target_power")).state == STATE_UNKNOWN
     wh = hass.states.get("water_heater.novolto_test")
-    assert wh.state == "electric"
+    assert wh.state == STATE_UNKNOWN  # neither power nor target power known
     assert wh.attributes["temperature"] is None
 
 
@@ -306,7 +320,7 @@ async def test_non_numeric_and_string_values(
     hass: HomeAssistant, mqtt_mock, caplog: pytest.LogCaptureFixture,
     field, value, unique_suffix, expected,
 ) -> None:
-    entry = await setup_entry(hass)
+    entry = await setup_entry(hass, enable_all=True)
     fire(hass, {**FULL_TELEGRAM, field: value})
     await hass.async_block_till_done()
     assert not errors(caplog)
@@ -330,29 +344,42 @@ async def test_integer_fields_typed_as_int(hass: HomeAssistant, mqtt_mock) -> No
 
 
 @pytest.mark.parametrize(
-    ("raw", "text"),
+    ("raw", "state", "active", "unknown_bits"),
     [
-        (0, "OK"),
-        (0x0001, "Sensor missing"),
-        (0x0401, "Sensor missing, STB tripped"),
-        (0x0480, "Hub disconnected, STB tripped"),
-        (0x07FF, "Sensor missing, Water temp read fail, Meter reading mismatch, "
-         "Fan RPM mismatch, Board temp exceeded, Board temp read fail, "
-         "Meter read fail, Hub disconnected, Power freq mismatch, "
-         "Missing settings, STB tripped"),
-        (0x0800, "Unknown (0x0800)"),
-        (0x0C01, "Sensor missing, STB tripped, Unknown (0x0800)"),
-        (0xF000, "Unknown (0xF000)"),
+        (0, "ok", [], None),
+        (0x0001, "sensor_missing", ["sensor_missing"], None),
+        (0x0401, "stb_tripped", ["stb_tripped", "sensor_missing"], None),
+        (0x0480, "stb_tripped", ["stb_tripped", "hub_disconnected"], None),
+        (0x0090, "board_temp_exceeded", ["board_temp_exceeded", "hub_disconnected"], None),
+        (0x0800, "unknown_bit", ["unknown_bit"], "0x0800"),
+        (0x0C01, "stb_tripped", ["stb_tripped", "sensor_missing", "unknown_bit"], "0x0800"),
+        (0xF000, "unknown_bit", ["unknown_bit"], "0xF000"),
     ],
 )
-async def test_status_bitflags(hass: HomeAssistant, mqtt_mock, raw, text) -> None:
-    await setup_entry(hass)
+async def test_status_bitflags(
+    hass: HomeAssistant, mqtt_mock, raw, state, active, unknown_bits
+) -> None:
+    """Most important message as state, all active ones as attribute."""
+    await setup_entry(hass, enable_all=True)
     fire(hass, {**FULL_TELEGRAM, "st": raw})
     await hass.async_block_till_done()
     st = hass.states.get(eid(hass, "sensor", "st"))
-    assert st.state == text
+    assert st.state == state
     assert st.attributes["status_raw"] == raw
+    assert st.attributes["active"] == active
+    assert st.attributes.get("unknown_bits") == unknown_bits
+    assert st.attributes["device_class"] == "enum"
     assert hass.states.get(eid(hass, "sensor", "st_raw")).state == str(raw)
+
+
+async def test_status_all_bits_known(hass: HomeAssistant, mqtt_mock) -> None:
+    await setup_entry(hass)
+    fire(hass, {**FULL_TELEGRAM, "st": 0x07FF})
+    await hass.async_block_till_done()
+    st = hass.states.get(eid(hass, "sensor", "st"))
+    assert st.state == "stb_tripped"
+    assert len(st.attributes["active"]) == 11
+    assert "unknown_bit" not in st.attributes["active"]
 
 
 async def test_availability_timeout_and_recovery(
@@ -375,7 +402,7 @@ async def test_availability_timeout_and_recovery(
     fire(hass, {**FULL_TELEGRAM, "avp": 500})
     await hass.async_block_till_done()
     assert hass.states.get(power_id).state == "500"
-    assert hass.states.get("water_heater.novolto_test").state == "electric"
+    assert hass.states.get("water_heater.novolto_test").state == "heating"
 
 
 async def test_availability_tick_dispatches_only_on_transition(
@@ -457,13 +484,16 @@ async def test_reload_is_clean(
 async def test_options_change_applies(hass: HomeAssistant, mqtt_mock) -> None:
     entry = await setup_entry(hass)
     number_id = eid(hass, "number", "target_power")
+    assert hass.states.get(number_id).attributes["max"] == 3000
     result = await hass.config_entries.options.async_init(entry.entry_id)
     await hass.config_entries.options.async_configure(
-        result["flow_id"], {CONF_MAX_POWER: 2000}
+        result["flow_id"],
+        {"power_stages": "0, 1000, 2000", "model": "p2300", "sptw_max": 50,
+         "edit_advanced": False},
     )
     await hass.async_block_till_done()
     assert entry.state is ConfigEntryState.LOADED
-    assert hass.states.get(number_id).attributes["max"] == 2000
+    assert hass.states.get(number_id).attributes["max"] == 2300
 
 
 async def test_unload_entry_cleanly(
