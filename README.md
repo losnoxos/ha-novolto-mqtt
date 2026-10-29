@@ -88,9 +88,7 @@ appears. If nothing arrives, see [Troubleshooting](#troubleshooting).
 
 [![Open repository in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=losnoxos&repository=ha-novolto-mqtt&category=integration)
 
-Or manually: HACS → ⋮ → **Custom repositories** →
-`https://github.com/losnoxos/ha-novolto-mqtt`, category **Integration** →
-download "Novolto MQTT".
+Or manually: HACS → search for **Novolto** → download "Novolto MQTT".
 
 Then **restart Home Assistant** and reload the browser page with
 **Ctrl+F5**, otherwise the integration doesn't show up in the list yet.

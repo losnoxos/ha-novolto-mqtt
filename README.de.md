@@ -92,9 +92,7 @@ mit `"serial"`, `"avtw"` usw. Kommt nichts, siehe
 
 [![Repository in HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=losnoxos&repository=ha-novolto-mqtt&category=integration)
 
-Oder von Hand: HACS → ⋮ → **Benutzerdefinierte Repositories** →
-`https://github.com/losnoxos/ha-novolto-mqtt`, Kategorie **Integration** →
-„Novolto MQTT“ herunterladen.
+Oder von Hand: HACS → nach **Novolto** suchen → „Novolto MQTT“ herunterladen.
 
 Danach **Home Assistant neu starten** und die Browserseite mit **Strg+F5**
 neu laden, sonst taucht die Integration in der Auswahl noch nicht auf.
