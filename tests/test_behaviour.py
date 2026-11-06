@@ -414,14 +414,17 @@ async def test_foreign_serial_blocks_device(hass: HomeAssistant, mqtt_mock) -> N
     assert issue.translation_placeholders == {
         "name": "Novolto Test", "serial": OTHER, "known": BASE
     }
-    # no settings can be sent to whatever is on the topic now
+    # no settings can be sent to whatever is on the topic now: HA skips the
+    # unavailable entity, the device itself refuses as well
     mqtt_mock.async_publish.reset_mock()
-    with pytest.raises(HomeAssistantError):
-        await hass.services.async_call(
-            "number", "set_value",
-            {"entity_id": eid(hass, "number", "target_power"), "value": 500},
-            blocking=True,
-        )
+    await hass.services.async_call(
+        "number", "set_value",
+        {"entity_id": eid(hass, "number", "target_power"), "value": 500},
+        blocking=True,
+    )
+    with pytest.raises(HomeAssistantError) as exc:
+        await device.async_set_target_power(500)
+    assert exc.value.translation_key == "device_offline"
     assert published(mqtt_mock) == []
 
 
