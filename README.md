@@ -127,6 +127,11 @@ are found by the search when adding manually.
   whole stages: 1500 W means alternating 1000 and 2000 W, visible e.g. on an
   external power meter. For a steady grid load use whole stages only
   (0/1000/2000/3000 W); the power stage select is set up that way.
+- **Relay clicks between 1000 and 1999 W:** in this range the P3000 switches
+  its relay on every change of the target power (audible click). If you
+  control the heating rod with a PV surplus automation, use whole stages
+  (1000/2000/3000 W). We are currently coordinating the best approach with
+  Novolto; this section will be updated afterwards.
 - **Maximum target temperature:** 50 °C by default. Higher values need a
   confirmed warning in the options (scalding risk at the tap).
 - New values show up in the slider immediately. If the heating rod rejects a

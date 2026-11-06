@@ -132,6 +132,11 @@ besteht (Normalfall: die Seriennummer). Mehrstufige Topics wie
   taktet: 1500 W bedeuten im Wechsel 1000 und 2000 W. Das zeigt z. B. eine
   externe Leistungsmessung. Für eine ruhige Netzlast nur volle Stufen nutzen
   (0/1000/2000/3000 W). Die Leistungsstufen-Auswahl ist darauf eingestellt.
+- **Relaisklicken zwischen 1000 und 1999 W:** In diesem Bereich schaltet der
+  P3000 bei jeder Änderung der Sollleistung sein Relais um (hörbares
+  Klicken). Wer den Heizstab per PV-Überschuss-Automation steuert, sollte
+  deshalb ganze Stufen nutzen (1000/2000/3000 W). Das beste Vorgehen stimmen
+  wir gerade mit Novolto ab; dieser Abschnitt wird danach aktualisiert.
 - **Maximale Solltemperatur:** Standard 50 °C. Höher geht es nur nach einer
   bestätigten Warnung in den Optionen, wegen Verbrühungsgefahr an der
   Zapfstelle.

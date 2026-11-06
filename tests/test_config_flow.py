@@ -402,7 +402,7 @@ async def test_manual_topic_with_data(hass: HomeAssistant, mqtt_mock) -> None:
 
 @pytest.mark.parametrize(
     "raw",
-    ["mqtt://192.168.1.5", f"{BASE} (Keller)", "a b", "x/#/y", "+", "", "  /  ", "a+b"],
+    ["mqtt://192.168.1.5", f"{BASE} (Keller)", "a b", "x/#/y", "+", "", "  /  ", "a+b"],  # geheimnis-ok
 )
 async def test_manual_topic_invalid(hass: HomeAssistant, mqtt_mock, raw) -> None:
     result = await _to_manual(hass)
