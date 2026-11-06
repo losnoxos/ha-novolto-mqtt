@@ -3,6 +3,23 @@
 All notable changes to this project are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- Device identity is enforced by the serial number. If another heating rod
+  sends on the configured topic, its values, availability and setting
+  acknowledgements are no longer taken over; the device becomes unavailable
+  and no settings are sent until this is resolved.
+- A device added without data that receives telegrams of a heating rod
+  already set up as another device no longer loses its "awaiting data" state
+  and stays blocked instead of showing that rod's values.
+
+### Added
+- Repair "another heating rod on the topic": after replacing the heating rod,
+  confirm to adopt the new one; device, entities and energy counter are kept.
+- Repair "receives data of another heating rod" if that rod is already set up
+  as another device.
+
 ## [0.6.1] - 2026-10-18
 
 ### Fixed
