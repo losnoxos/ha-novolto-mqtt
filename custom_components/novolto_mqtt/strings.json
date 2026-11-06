@@ -329,6 +329,25 @@
     "stb_tripped": {
       "title": "{name}: safety temperature limiter tripped",
       "description": "The overheating protection of the heating rod has tripped. Check the heating rod and the tank, contact Novolto support if necessary."
+    },
+    "other_device": {
+      "title": "{name}: another heating rod on the topic",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Adopt the new heating rod?",
+            "description": "Another heating rod now sends on the topic of {name} (serial number {serial}, previously {known}). Its data is not used, {name} is unavailable until then. If the heating rod was replaced, confirm here: the new heating rod takes over device, entities and energy counter. Otherwise correct the MQTT topic in the heating rod or in the integration (\"Reconfigure\")."
+          }
+        },
+        "abort": {
+          "device_not_loaded": "The heating rod is not loaded right now. Try again later.",
+          "already_configured": "This heating rod is already set up as a separate device. Correct the topic instead of adopting it."
+        }
+      }
+    },
+    "duplicate_device": {
+      "title": "{name} receives data of another heating rod",
+      "description": "The heating rod {serial}, which is already set up as {other}, sends on the topic of {name}. Its data is not used, {name} is unavailable. Correct the topic (\"Reconfigure\") or delete this entry."
     }
   }
 }

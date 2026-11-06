@@ -10,7 +10,6 @@ import logging
 from datetime import timedelta
 
 from homeassistant.components import mqtt
-from homeassistant.config_entries import SOURCE_IGNORE
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -44,7 +43,12 @@ from .const import (
     MODELS,
     STORAGE_VERSION,
 )
-from .device import NovoltoConfigEntry, NovoltoDevice, async_delete_issues
+from .device import (
+    NovoltoConfigEntry,
+    NovoltoDevice,
+    async_delete_issues,
+    other_entry_for_serial,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -124,7 +128,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: NovoltoConfigEntry) -> b
         connection=connection,
         store=store,
         energy_kwh=initial_energy_kwh,
-        on_serial_learned=lambda serial: _async_adopt_serial(hass, entry, serial),
+        on_serial_learned=lambda serial: async_adopt_serial(hass, entry, serial),
     )
     entry.runtime_data = device
     loaded_options = dict(entry.options)
@@ -153,15 +157,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: NovoltoConfigEntry) -> b
 
 
 @callback
-def _async_adopt_serial(
+def async_adopt_serial(
     hass: HomeAssistant, entry: NovoltoConfigEntry, serial: str
-) -> None:
-    """First telegram of a device added without data: switch to its serial.
+) -> bool:
+    """Switch an entry to the serial of the device on its topic.
 
-    Until then the device was keyed by its topic. Device, entities and the
-    energy counter are kept; only their identifiers change.
+    Used for the first telegram of a device added without data (until then
+    keyed by its topic) and by the repair "other device" after a replacement
+    (keyed by the old serial). Device, entities and the energy counter are
+    kept; only their identifiers change. Refused (False) if the serial is
+    already set up as another entry.
     """
-    old_key = entry.unique_id or entry.data[CONF_BASE_TOPIC]
+    other = other_entry_for_serial(hass, entry, serial)
+    if other is not None:
+        _LOGGER.warning(
+            "%s receives data of %s, which is already set up as %s",
+            entry.title,
+            serial,
+            other.title,
+        )
+        return False
+
+    # Same order as NovoltoDevice.key, which entities and device are keyed by.
+    old_key = (
+        entry.data.get(CONF_SERIAL) or entry.unique_id or entry.data[CONF_BASE_TOPIC]
+    )
     dev_reg = dr.async_get(hass)
     if serial == old_key:
         hass.config_entries.async_update_entry(
@@ -169,21 +189,9 @@ def _async_adopt_serial(
         )
         for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
             dev_reg.async_update_device(device.id, serial_number=serial)
-        return
-    other = hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, serial)
-    if (
-        other is not None
-        and other.entry_id != entry.entry_id
-        and other.source != SOURCE_IGNORE
-    ):
-        _LOGGER.warning(
-            "%s receives data of %s, which is already set up as %s",
-            entry.title,
-            serial,
-            other.title,
-        )
-        return
+        return True
 
+    ignored = hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, serial)
     ent_reg = er.async_get(hass)
     for ent in er.async_entries_for_config_entry(ent_reg, entry.entry_id):
         if ent.unique_id.startswith(f"{old_key}_"):
@@ -191,9 +199,9 @@ def _async_adopt_serial(
                 ent.entity_id,
                 new_unique_id=serial + ent.unique_id.removeprefix(old_key),
             )
-    if other is not None and other.entry_id != entry.entry_id:
+    if ignored is not None and ignored.entry_id != entry.entry_id:
         # An ignored discovery of the same device: drop it.
-        hass.async_create_task(hass.config_entries.async_remove(other.entry_id))
+        hass.async_create_task(hass.config_entries.async_remove(ignored.entry_id))
     for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
         if (DOMAIN, old_key) in device.identifiers:
             dev_reg.async_update_device(
@@ -210,6 +218,7 @@ def _async_adopt_serial(
     )
     _LOGGER.info("%s identified as %s", entry.title, serial)
     hass.config_entries.async_schedule_reload(entry.entry_id)
+    return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: NovoltoConfigEntry) -> bool:

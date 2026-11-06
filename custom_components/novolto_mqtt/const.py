@@ -208,6 +208,12 @@ ISSUE_STB_TRIPPED = "stb_tripped"
 # Fixable: retained telegram on the broker is outdated (retain switched off
 # on the device later), the fix deletes it.
 ISSUE_STALE_RETAINED = "stale_retained"
+# Fixable: the topic carries telegrams of a device with another serial (e.g.
+# the heating rod was replaced). Data is blocked; the fix adopts the new one.
+ISSUE_OTHER_DEVICE = "other_device"
+# Not fixable: the topic carries telegrams of a device that is already set up
+# as another entry. Data is blocked until the topic is corrected.
+ISSUE_DUPLICATE_DEVICE = "duplicate_device"
 # How long to wait for the broker to deliver the stored message again.
 STORED_MESSAGE_WAIT_SECONDS = 5
 

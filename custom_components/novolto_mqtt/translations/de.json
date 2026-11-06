@@ -329,6 +329,25 @@
     "stb_tripped": {
       "title": "{name}: Sicherheitstemperaturbegrenzer ausgelöst",
       "description": "Der Überhitzungsschutz des Heizstabs hat ausgelöst. Heizstab und Speicher prüfen, ggf. Novolto-Support kontaktieren."
+    },
+    "other_device": {
+      "title": "{name}: anderer Heizstab auf dem Topic",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Neuen Heizstab übernehmen?",
+            "description": "Auf dem Topic von {name} sendet jetzt ein anderer Heizstab (Seriennummer {serial}, bisher {known}). Seine Daten werden nicht übernommen, {name} ist bis dahin nicht verfügbar. Wurde der Heizstab getauscht, hier bestätigen: Der neue Heizstab übernimmt Gerät, Entitäten und Energiezähler. Sonst das MQTT-Topic im Heizstab oder in der Integration („Neu konfigurieren“) korrigieren."
+          }
+        },
+        "abort": {
+          "device_not_loaded": "Der Heizstab ist gerade nicht geladen. Bitte später erneut versuchen.",
+          "already_configured": "Dieser Heizstab ist bereits als eigenes Gerät eingerichtet. Topic korrigieren statt übernehmen."
+        }
+      }
+    },
+    "duplicate_device": {
+      "title": "{name} empfängt Daten eines anderen Heizstabs",
+      "description": "Auf dem Topic von {name} sendet der Heizstab {serial}, der bereits als {other} eingerichtet ist. Die Daten werden nicht übernommen, {name} ist nicht verfügbar. Topic korrigieren („Neu konfigurieren“) oder diesen Eintrag löschen."
     }
   }
 }
