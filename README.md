@@ -136,7 +136,13 @@ are found by the search when adding manually.
   confirmed warning in the options (scalding risk at the tap).
 - New values show up in the slider immediately. If the heating rod rejects a
   setting, the slider jumps back and a message appears under Settings →
-  Repairs.
+  Repairs. If the heating rod doesn't confirm a value (e.g. because it is
+  just restarting), the slider shows the heating rod's value again after the
+  availability timeout at the latest. In automations, check the measured
+  power, not the slider.
+- After several changes in quick succession the display can show an
+  intermediate value for up to one measurement interval. The final value is
+  correct.
 
 > [!WARNING]
 > **Without a connection the heating rod keeps heating.** After a power cut
@@ -239,6 +245,62 @@ Add each heating rod separately; each gets its own entities, options and
 energy counter. Use different names, e.g. "Heating rod basement" and
 "Heating rod garage".
 
+## Serial number and foreign devices on the topic
+
+The integration recognises the heating rod by its serial number (field
+`serial` in every message), not by its topic.
+
+- **Messages without a valid serial number** are ignored and a message
+  appears. If a heating rod sends no serial number at all any more (e.g.
+  after a firmware update), it stays unavailable and cannot be switched off
+  via Home Assistant either. The automation "0 W after HA start" then waits
+  in vain.
+- **Another heating rod on the topic:** its values are never taken over,
+  your heating rod keeps working normally. A single foreign telegram is only
+  reported. From the second one on, the integration sends no more settings
+  to the topic - both heating rods read the same control topic. Only
+  **switching off (0 W)** remains possible while your heating rod is
+  reachable; it then switches off the other one as well.
+- The block ends once the other heating rod has sent nothing for a while
+  (at least the availability timeout, longer if its measurement interval is
+  long, at most 15 minutes). After that, only its second telegram blocks
+  again. The block survives a reload and a Home Assistant restart - unless
+  the restart takes longer than that.
+- **Heating rod replaced:** the old one stays visible with its last values
+  until the availability timeout. Once it no longer sends, click **Fix** in
+  the message "another heating rod on the topic": the new one takes over
+  device, entities and energy counter. While the old one still sends (or
+  Home Assistant has only just started), this is refused.
+- If the other heating rod is already set up as a device of its own, the
+  message reads "receives data of another heating rod": correct the topic.
+
+## Stored commands on the control topic
+
+If a stored (retained) message lies on `<topic>/control`, the heating rod
+**executes it again on every reconnect** - after every restart and every
+WiFi dropout. An old command such as "3000 W" keeps overriding your control
+that way. This integration never publishes with retain. It checks at start,
+after the heating rod restarts or reconnects and on unexpected rejections
+whether something is stored there, and reports it.
+
+**Never publish with retain to `<topic>/control`** - not from your own
+automations or scripts either.
+
+To delete the stored message with [MQTT Explorer](https://mqtt-explorer.com):
+connect to the broker, select the topic `<topic>/control` on the left and
+click the trash icon next to the value on the right. With `mosquitto_pub`
+(replace the placeholders):
+
+```bash
+mosquitto_pub -h <broker-ip> -u <user> -P <password> -t '<topic>/control' -r -n
+```
+
+Deleting is an empty message on the control topic, which the heating rod
+receives as well if it is connected at that moment. How it reacts has not
+been checked yet. To be on the safe side, delete it while the heating rod is
+not connected (e.g. briefly disconnected from power). The message in Home
+Assistant then disappears by itself.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -251,6 +313,10 @@ energy counter. Use different names, e.g. "Heating rod basement" and
 | Integration missing in the list | HA not restarted after the HACS download | Restart, Ctrl+F5 |
 | Message "rejected a setting" | Value not accepted by the heating rod | Error code in the message, check the value |
 | Message "outdated stored message on the broker" | Retain was on in the heating rod and has been switched off; the broker still holds the old message | Click **Fix** in the message and confirm, it gets deleted |
+| Message "messages without a serial number" | Another device sends to the topic, or the firmware sends no serial number | See [Serial number and foreign devices](#serial-number-and-foreign-devices-on-the-topic) |
+| Message "another heating rod on the topic" / "receives data of another heating rod" | Two heating rods use the same topic, or the heating rod was replaced | Correct the topic or, after a replacement, adopt the new one, see [Serial number and foreign devices](#serial-number-and-foreign-devices-on-the-topic) |
+| Setting not sent: "another heating rod sends on the topic" | Sending blocked because of a foreign heating rod | As above; switching off (0 W) still works |
+| Message "stored command on the control topic" | A program published with retain to `<topic>/control` | Delete the message, see [Stored commands](#stored-commands-on-the-control-topic), and change that program |
 
 For a bug report on GitHub: Settings → Devices & services → Novolto MQTT →
 ⋮ → **Download diagnostics** (the serial number is redacted).
@@ -261,7 +327,11 @@ For a bug report on GitHub: Settings → Devices & services → Novolto MQTT →
   acknowledgements of settings) and `<topic>/control` (settings `spp`,
   `sptw`, `sptwh`).
 - A telegram the broker delivers as "retained" shows the last values but
-  does not make the heating rod available; only a live message does.
+  does not make the heating rod available; only a live message does. While
+  the heating rod reports live, a retained telegram is ignored.
+- After a restart of the heating rod (first telegram with `rst_cause`) the
+  pause is not counted as energy. The firmware version from that telegram is
+  shown in the device info.
 - The status sensor shows the most important active message. All active
   messages are in the attribute `active`, the bitmask in `status_raw`.
 - Protocol reference:

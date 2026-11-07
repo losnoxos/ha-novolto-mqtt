@@ -28,6 +28,15 @@ PayloadCallback = Callable[[dict[str, Any], bool], None]
 class NovoltoConnection(ABC):
     """A way of receiving Novolto payloads and sending settings."""
 
+    @property
+    @abstractmethod
+    def address(self) -> str:
+        """Where the device's data comes from (state stored per address)."""
+
+    @abstractmethod
+    async def async_fetch_retained_control(self) -> str | None:
+        """Return a command stored for the device (executed on reconnect)."""
+
     @abstractmethod
     async def async_start(self, on_payload: PayloadCallback) -> Callable[[], None]:
         """Start receiving; returns a callable that stops it again."""
@@ -64,6 +73,11 @@ class MqttConnection(NovoltoConnection):
         self.hass = hass
         self.topic_info = f"{base_topic}/{info_suffix}"
         self.topic_control = f"{base_topic}/{control_suffix}"
+
+    @property
+    def address(self) -> str:
+        """The info topic."""
+        return self.topic_info
 
     async def async_start(self, on_payload: PayloadCallback) -> Callable[[], None]:
         """Subscribe to the info topic."""
@@ -102,6 +116,44 @@ class MqttConnection(NovoltoConnection):
         finally:
             unsubscribe()
         return stored[-1] if stored else None
+
+    async def async_fetch_retained_control(self) -> str | None:
+        """Subscribe to the control topic briefly; return a retained message.
+
+        The device subscribes to its control topic and executes a retained
+        message there on every reconnect (measured). This integration never
+        publishes with retain; whatever is stored came from elsewhere. Only
+        messages the broker delivers as retained count, an empty one means
+        deleted. Returned raw (decoded leniently), also if it isn't JSON.
+        """
+        found: list[str] = []
+        received = asyncio.Event()
+
+        @callback
+        def _message(msg: mqtt.ReceiveMessage) -> None:
+            if not msg.retain:
+                return
+            raw = msg.payload
+            text = (
+                raw.decode("utf-8", errors="replace")
+                if isinstance(raw, (bytes, bytearray))
+                else str(raw)
+            )
+            if text:
+                found.append(text)
+                received.set()
+
+        unsubscribe = await mqtt.async_subscribe(
+            self.hass, self.topic_control, _message, encoding=None
+        )
+        try:
+            async with asyncio.timeout(STORED_MESSAGE_WAIT_SECONDS):
+                await received.wait()
+        except TimeoutError:
+            pass
+        finally:
+            unsubscribe()
+        return found[-1] if found else None
 
     async def async_clear_stored_message(self) -> None:
         """Delete the retained message on the info topic.

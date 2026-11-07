@@ -335,7 +335,7 @@ async def test_serial_adoption_keeps_entities(
 async def test_serial_adoption_refused_if_serial_set_up_elsewhere(
     hass: HomeAssistant, mqtt_mock, freezer: FrozenDateTimeFactory
 ) -> None:
-    """Refused adoption also blocks the data and keeps 'awaiting data'."""
+    """Refused adoption ignores the data and keeps 'awaiting data'."""
     make_entry(entry_id="first", title="First").add_to_hass(hass)  # owns BASE
     entry = await setup_entry(
         hass, data=AWAITING, unique_id="keller/stab", title="Second"
@@ -355,12 +355,19 @@ async def test_serial_adoption_refused_if_serial_set_up_elsewhere(
     assert issue.translation_placeholders == {
         "name": "Second", "serial": BASE, "other": "First"
     }
-    # still blocked on later telegrams; no misleading "sends no data" issue
-    fire(hass, FULL_TELEGRAM, topic="keller/stab/info")
-    await hass.async_block_till_done()
+    # the other device keeps sending: no misleading "sends no data" issue
+    for _ in range(22):  # 11 min
+        await tick(hass, freezer, 30)
+        fire(hass, FULL_TELEGRAM, topic="keller/stab/info")
+        await hass.async_block_till_done()
     assert not device.available
-    await tick(hass, freezer, 11 * 60)
     assert ir.async_get(hass).async_get_issue(DOMAIN, f"no_data_{ENTRY_ID}") is None
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"duplicate_device_{ENTRY_ID}")
+    # it stops: once its window has passed, nothing arrives on the topic at all
+    for _ in range(5):
+        await tick(hass, freezer, 30)
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"duplicate_device_{ENTRY_ID}") is None
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"no_data_{ENTRY_ID}")
 
 
 async def test_adoption_checks_duplicate_when_topic_is_serial(
@@ -400,32 +407,37 @@ async def _start_with_foreign_telegram(hass: HomeAssistant):
     return entry
 
 
-async def test_foreign_serial_blocks_device(hass: HomeAssistant, mqtt_mock) -> None:
+async def test_foreign_serial_reported_then_blocks_sending(
+    hass: HomeAssistant, mqtt_mock
+) -> None:
     entry = await _start_with_foreign_telegram(hass)
     device = entry.runtime_data
-    assert not device.available
+    assert device.available  # the own device keeps reporting
     assert device.data["avp"] == 395  # foreign values not taken over
     assert device.data["avtw"] == 23.8
-    assert hass.states.get(eid(hass, "sensor", "avp")).state == STATE_UNAVAILABLE
-    assert hass.states.get("water_heater.novolto_test").state == STATE_UNAVAILABLE
+    assert hass.states.get(eid(hass, "sensor", "avp")).state == "395"
     issue = _other_issue(hass)
     assert issue.is_fixable
     assert issue.data == {"entry_id": ENTRY_ID, "serial": OTHER}
     assert issue.translation_placeholders == {
         "name": "Novolto Test", "serial": OTHER, "known": BASE
     }
-    # no settings can be sent to whatever is on the topic now: HA skips the
-    # unavailable entity, the device itself refuses as well
+    # a second foreign telegram: no more settings to the topic, except "off"
+    fire(hass, {**FULL_TELEGRAM, "serial": OTHER, "avp": 2999})
+    await hass.async_block_till_done()
     mqtt_mock.async_publish.reset_mock()
-    await hass.services.async_call(
-        "number", "set_value",
-        {"entity_id": eid(hass, "number", "target_power"), "value": 500},
-        blocking=True,
-    )
     with pytest.raises(HomeAssistantError) as exc:
-        await device.async_set_target_power(500)
-    assert exc.value.translation_key == "device_offline"
+        await hass.services.async_call(
+            "number", "set_value",
+            {"entity_id": eid(hass, "number", "target_power"), "value": 500},
+            blocking=True,
+        )
+    assert exc.value.translation_key == "foreign_device_on_topic"
     assert published(mqtt_mock) == []
+    await device.async_set_target_power(0)
+    assert published(mqtt_mock) == [
+        (CONTROL_TOPIC, {"sensor": [{"name": "spp", "value": 0}]})
+    ]
 
 
 async def test_foreign_serial_books_no_energy(
@@ -449,34 +461,30 @@ async def test_foreign_serial_warns_once(
     assert caplog.text.count("carries data of another device") == 1
 
 
-async def test_own_device_back_unblocks(hass: HomeAssistant, mqtt_mock) -> None:
+async def test_own_device_keeps_reporting_after_foreign_telegram(
+    hass: HomeAssistant, mqtt_mock, freezer: FrozenDateTimeFactory
+) -> None:
+    """One foreign telegram blocks nothing; its issue stays for its window."""
     entry = await _start_with_foreign_telegram(hass)
     fire(hass, {**FULL_TELEGRAM, "avp": 500})
     await hass.async_block_till_done()
     assert entry.runtime_data.available
     assert hass.states.get(eid(hass, "sensor", "avp")).state == "500"
+    assert _other_issue(hass) is not None
+    for _ in range(5):  # 150 s without the foreign device
+        await tick(hass, freezer, 30)
+        fire(hass, FULL_TELEGRAM)
+        await hass.async_block_till_done()
     assert _other_issue(hass) is None
 
 
-async def test_telegram_without_serial_stays_blocked(
-    hass: HomeAssistant, mqtt_mock
-) -> None:
-    """Without a serial nothing can be told apart: no unblocking by it."""
+async def test_telegram_without_serial_dropped(hass: HomeAssistant, mqtt_mock) -> None:
+    """Without a valid serial nothing can be told apart: always dropped."""
     entry = await _start_with_foreign_telegram(hass)
     fire(hass, {"unix_time": UNIX_TIME, "avp": 1234, "avtw": 50.0})
     await hass.async_block_till_done()
-    assert not entry.runtime_data.available
-    assert entry.runtime_data.data["avp"] == 395
-
-
-async def test_telegram_without_serial_accepted(hass: HomeAssistant, mqtt_mock) -> None:
-    """Decision Review 0.6.1: a missing serial is not rejected (not yet known
-    whether every firmware sends it)."""
-    entry = await setup_entry(hass)
-    fire(hass, {"unix_time": UNIX_TIME, "avp": 1234, "avtw": 50.0})
-    await hass.async_block_till_done()
     assert entry.runtime_data.available
-    assert hass.states.get(eid(hass, "sensor", "avp")).state == "1234"
+    assert entry.runtime_data.data["avp"] == 395
 
 
 async def test_foreign_retained_telegram_dropped(hass: HomeAssistant, mqtt_mock) -> None:
@@ -526,7 +534,7 @@ async def test_foreign_device_set_up_elsewhere_not_fixable(
 
 
 async def test_other_device_fix_flow_adopts_replacement(
-    hass: HomeAssistant, mqtt_mock
+    hass: HomeAssistant, mqtt_mock, freezer: FrozenDateTimeFactory
 ) -> None:
     from homeassistant.components.repairs import DOMAIN as REPAIRS_DOMAIN
     from homeassistant.setup import async_setup_component
@@ -535,6 +543,10 @@ async def test_other_device_fix_flow_adopts_replacement(
 
     assert await async_setup_component(hass, REPAIRS_DOMAIN, {})
     entry = await _start_with_foreign_telegram(hass)
+    for _ in range(5):  # the old device has gone silent
+        await tick(hass, freezer, 30)
+    fire(hass, {**FULL_TELEGRAM, "serial": OTHER})
+    await hass.async_block_till_done()
     energy_before = entry.runtime_data.energy_kwh
     wh_id = "water_heater.novolto_test"
     issue = _other_issue(hass)
@@ -557,14 +569,15 @@ async def test_other_device_fix_flow_adopts_replacement(
     (device,) = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
     assert device.identifiers == {(DOMAIN, OTHER)}
     assert device.serial_number == OTHER
-    # the new device's data is used from now on, the old one is blocked
+    # the new device's data is used from now on, the old one is foreign
     fire(hass, {**FULL_TELEGRAM, "serial": OTHER, "avp": 777})
     await hass.async_block_till_done()
     assert hass.states.get("sensor.novolto_test_power").state == "777"
     assert entry.runtime_data.energy_kwh == energy_before
     fire(hass, FULL_TELEGRAM)
     await hass.async_block_till_done()
-    assert not entry.runtime_data.available
+    assert entry.runtime_data.available
+    assert hass.states.get("sensor.novolto_test_power").state == "777"
 
 
 async def test_other_device_fix_flow_refused_if_set_up_elsewhere(

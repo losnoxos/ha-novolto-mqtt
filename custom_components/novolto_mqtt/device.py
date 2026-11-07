@@ -15,6 +15,7 @@ from typing import Any
 from homeassistant.config_entries import SOURCE_IGNORE, ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
@@ -45,6 +46,7 @@ from .const import (
     FIELD_MSI,
     FIELD_POWER,
     FIELD_RET,
+    FIELD_RST_CAUSE,
     FIELD_S_ERR,
     FIELD_SERIAL,
     FIELD_STATUS,
@@ -52,10 +54,16 @@ from .const import (
     FIELD_TARGET_WATER_TEMP,
     FIELD_TARGET_WATER_TEMP_HYSTERESIS,
     FIELD_UNIX_TIME,
+    FIELD_VERSION,
+    FOREIGN_BLOCK_TELEGRAMS,
+    FOREIGN_MAX_DEVICES,
+    FOREIGN_WINDOW_MAX_SECONDS,
     INTEGER_FIELDS,
     ISSUE_DUPLICATE_DEVICE,
+    ISSUE_INVALID_SERIAL,
     ISSUE_NO_DATA,
     ISSUE_OTHER_DEVICE,
+    ISSUE_RETAINED_CONTROL,
     ISSUE_SETTING_REJECTED,
     ISSUE_STALE_RETAINED,
     ISSUE_STB_TRIPPED,
@@ -63,6 +71,8 @@ from .const import (
     MODELS,
     MSI_TIMEOUT_FACTOR,
     NO_DATA_ISSUE_MINUTES,
+    RETAINED_CONTROL_MAX_CHARS,
+    SERIAL_MAX_LENGTH,
     SIGNAL_UPDATE,
     STATUS_STB_TRIPPED,
     ModelSpec,
@@ -107,6 +117,21 @@ def is_ack(payload: dict[str, Any]) -> bool:
     return MEASUREMENT_FIELDS.isdisjoint(payload)
 
 
+def valid_serial(value: Any) -> bool:
+    """Whether a serial number can identify a device.
+
+    A string of 1-64 characters, without surrounding spaces and without the
+    MQTT separator and wildcards. Anything else can't be told apart from
+    another device and is never used.
+    """
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= SERIAL_MAX_LENGTH
+        and value.strip() == value
+        and not any(c in value for c in "/+#")
+    )
+
+
 def is_novolto_telegram(payload: Any) -> bool:
     """Strict check whether a payload is a Novolto measurement telegram.
 
@@ -115,14 +140,28 @@ def is_novolto_telegram(payload: Any) -> bool:
     """
     if not isinstance(payload, dict) or not DISCOVERY_REQUIRED_FIELDS <= payload.keys():
         return False
-    serial = payload[FIELD_SERIAL]
     return (
-        isinstance(serial, str)
-        and 0 < len(serial) <= 64
-        and serial.strip() == serial
-        and not any(c in serial for c in "/+#")
+        valid_serial(payload[FIELD_SERIAL])
         and as_number(payload[FIELD_MSI], True) is not None
     )
+
+
+def shorten_payload(raw: str) -> str:
+    """A stored command made safe for a repair text (inside backticks)."""
+    text = "".join(c if c.isprintable() else " " for c in raw).replace("`", "'")
+    if len(text) > RETAINED_CONTROL_MAX_CHARS:
+        text = text[:RETAINED_CONTROL_MAX_CHARS] + "…"
+    return text
+
+
+def _parse_time(value: Any) -> datetime | None:
+    """A stored UTC timestamp, None if it isn't one."""
+    if not isinstance(value, str):
+        return None
+    parsed = dt_util.parse_datetime(value)
+    if parsed is None or parsed.tzinfo is None:
+        return None
+    return parsed
 
 
 def other_entry_for_serial(
@@ -162,6 +201,20 @@ class _Pending:
     acked: bool = False
 
 
+@dataclass
+class _Foreign:
+    """A device with another serial number seen on the topic."""
+
+    first: datetime
+    last: datetime
+    count: int
+    window: float
+
+    def active(self, now: datetime) -> bool:
+        """Still counts as present on the topic."""
+        return (now - self.last).total_seconds() < self.window
+
+
 class NovoltoDevice:
     """Runtime state and logic for one Novolto device."""
 
@@ -173,6 +226,7 @@ class NovoltoDevice:
         store: Store,
         energy_kwh: float = 0.0,
         on_serial_learned: Callable[[str], Any] | None = None,
+        stored_foreign: Any = None,
     ) -> None:
         """Initialize the device."""
         self.hass = hass
@@ -194,8 +248,25 @@ class NovoltoDevice:
         self._save_pending = False
         self._pending: dict[str, _Pending] = {}
         self._no_data_unsub: CALLBACK_TYPE | None = None
-        # Serial of a foreign device whose telegrams are currently blocked.
-        self._blocked_serial: str | None = None
+        # "Sends no data": the 10 minutes have passed / the issue is shown.
+        self._no_data_due = False
+        self._no_data_shown = False
+        self._started: datetime | None = None
+        # Foreign devices on the topic (serial -> record), persisted in the
+        # Store together with the topic they were seen on.
+        self._stored_foreign = stored_foreign
+        self._foreign: dict[str, _Foreign] = {}
+        self._foreign_warned: set[str] = set()
+        # (issue, serial) of the foreign-device issue currently shown.
+        self._foreign_issue: tuple[str, str] | None = None
+        # Last live message without a valid serial (issue shown while set).
+        self._invalid_last: datetime | None = None
+        self._invalid_warned = False
+        # Check for a retained command on the control topic.
+        self._control_check_running = False
+        self._control_issue = False
+        self._check_control_on_return = False
+        self._sw_version: str | None = None
 
     # --- identity and configuration ---
 
@@ -264,19 +335,41 @@ class NovoltoDevice:
     def available(self) -> bool:
         """Whether the device has sent a live telegram recently enough.
 
-        Retained telegrams (replayed by the broker on subscribe, possibly
-        from yesterday) never make the device available, nor does a foreign
-        device on the topic.
+        Only the device's own live telegrams count: retained telegrams
+        (replayed by the broker on subscribe, possibly from yesterday) and
+        other devices on the topic never make it available - nor unavailable.
         """
-        if self._blocked_serial is not None or self.last_seen is None:
+        if self.last_seen is None:
             return False
         age = (dt_util.utcnow() - self.last_seen).total_seconds()
         return age <= self.effective_timeout
+
+    def own_device_may_be_active(self) -> bool:
+        """Whether the own device may still be reporting.
+
+        True while it is available, and right after the start, when its
+        silence isn't proven yet. The repair "adopt" is refused then.
+        """
+        if self.available:
+            return True
+        return (
+            self._started is None
+            or (dt_util.utcnow() - self._started).total_seconds()
+            < self.effective_timeout
+        )
 
     # --- lifecycle ---
 
     async def async_start(self) -> Callable[[], None]:
         """Start receiving; returns a callable that stops everything."""
+        self._started = dt_util.utcnow()
+        if ir.async_get(self.hass).async_get_issue(
+            DOMAIN, self._issue_id(ISSUE_INVALID_SERIAL)
+        ):
+            # Shown before a reload: ends after a timeout without such messages.
+            self._invalid_last = self._started
+        self._load_foreign(self._stored_foreign)
+        self._stored_foreign = None
         unsubscribe = await self.connection.async_start(self.handle_payload)
         if self.entry.data.get(CONF_AWAITING_DATA):
             self._no_data_unsub = async_call_later(
@@ -284,6 +377,7 @@ class NovoltoDevice:
                 timedelta(minutes=NO_DATA_ISSUE_MINUTES),
                 self._async_no_data_timeout,
             )
+        self._schedule_control_check()
 
         @callback
         def _stop() -> None:
@@ -297,20 +391,41 @@ class NovoltoDevice:
     @callback
     def _async_no_data_timeout(self, _now: datetime) -> None:
         self._no_data_unsub = None
-        # Blocked data of a device set up elsewhere: that issue says more.
-        if self.entry.data.get(CONF_AWAITING_DATA) and self._blocked_serial is None:
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                self._issue_id(ISSUE_NO_DATA),
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=ISSUE_NO_DATA,
-                translation_placeholders={
-                    "name": self.name,
-                    "minutes": str(NO_DATA_ISSUE_MINUTES),
-                },
-            )
+        self._no_data_due = True
+        self._update_no_data_issue()
+
+    def _update_no_data_issue(self) -> None:
+        """Show "sends no data" once due, unless a more precise issue stands.
+
+        Messages without a valid serial or a foreign device on the topic
+        explain the missing data better; their issues replace this one.
+        """
+        self._prune_foreign()
+        show = (
+            self._no_data_due
+            and bool(self.entry.data.get(CONF_AWAITING_DATA))
+            and self._invalid_last is None
+            and not self._foreign
+        )
+        if show == self._no_data_shown:
+            return
+        self._no_data_shown = show
+        issue_id = self._issue_id(ISSUE_NO_DATA)
+        if not show:
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_NO_DATA,
+            translation_placeholders={
+                "name": self.name,
+                "minutes": str(NO_DATA_ISSUE_MINUTES),
+            },
+        )
 
     # --- incoming payloads ---
 
@@ -318,33 +433,32 @@ class NovoltoDevice:
     def handle_payload(self, payload: dict[str, Any], retained: bool) -> None:
         """Handle a decoded payload from the connection.
 
-        The serial is checked before anything is taken over: telegrams and
-        acks of another device change no value, availability or setting.
+        The serial is checked before anything is taken over: messages
+        without a valid serial and telegrams and acks of another device
+        change no value, availability, energy or setting.
         """
+        serial = payload.get(FIELD_SERIAL)
+        if not valid_serial(serial):
+            if not retained:
+                self._invalid_serial_received()
+            return
         if is_ack(payload):
-            if not retained and self._ack_is_ours(payload.get(FIELD_SERIAL)):
+            if not retained and self._ack_is_ours(serial):
                 self._handle_ack(payload)
             return
 
-        cleaned = clean_telegram(payload)
         _LOGGER.debug(
             "Novolto %s telegram (retained=%s): %s", self.base_topic, retained, payload
         )
-        awaiting_data = self.entry.data.get(CONF_AWAITING_DATA)
-        if not self._identify(cleaned.get(FIELD_SERIAL), retained):
-            return
-        self.data.update(cleaned)
-        self.last_telegram_retained = retained
-
         if retained:
-            # Replayed by the broker on subscribe: show the values, but the
-            # device is not known to be alive - no availability, no energy.
-            self._last_energy_ts = None
-            self._last_power_w = None
-            if not self._retained_checked:
-                self._retained_unix_time = cleaned.get(FIELD_UNIX_TIME)
-            async_dispatcher_send(self.hass, self.signal)
+            self._handle_retained(serial, payload)
             return
+        awaiting_data = self.entry.data.get(CONF_AWAITING_DATA)
+        if not self._identify(serial, payload):
+            return
+        cleaned = clean_telegram(payload)
+        self.data.update(cleaned)
+        self.last_telegram_retained = False
 
         now = dt_util.utcnow()
         if awaiting_data:
@@ -352,6 +466,22 @@ class NovoltoDevice:
         if not self._was_available:
             _LOGGER.info("Novolto %s is now reporting data", self.base_topic)
             self._was_available = True
+            if self._check_control_on_return:
+                # Back after an outage: the device has just reconnected and
+                # executed whatever was stored on its control topic.
+                self._check_control_on_return = False
+                self._schedule_control_check()
+        if payload.get(FIELD_RST_CAUSE) is not None:
+            # First telegram after a device restart: its consumption during
+            # the restart is unknown - start a new energy chain - and it has
+            # just executed whatever was stored on its control topic.
+            _LOGGER.info(
+                "Novolto %s restarted (%s)", self.base_topic, payload[FIELD_RST_CAUSE]
+            )
+            self._last_energy_ts = None
+            self._last_power_w = None
+            self._schedule_control_check()
+        self._update_sw_version(payload.get(FIELD_VERSION))
         if FIELD_POWER in cleaned:
             self._update_energy(cleaned[FIELD_POWER], now)
         self._confirm_pending(cleaned)
@@ -362,100 +492,252 @@ class NovoltoDevice:
 
     # --- identity ---
 
-    def _identify(self, serial: Any, retained: bool) -> bool:
-        """Whether a telegram belongs to this device and may be processed.
+    def _identify(self, serial: str, payload: dict[str, Any]) -> bool:
+        """Whether a live telegram (valid serial) is this device's own.
 
-        - Serial known: it must match. Another serial blocks the device
-          (fixable issue: adopt the new device, e.g. after a replacement;
-          not fixable if that device is set up as another entry).
-        - Serial not known yet (added without data, migrated from 0.5.0): a
-          serial already set up as another entry is blocked; otherwise it is
-          adopted with the first live telegram.
-        - No serial in the telegram: can't tell - accepted unless blocked.
-        Retained telegrams never block or adopt (they may stem from a device
-        that was on the topic before); a foreign one is just dropped.
+        - Serial known: it must match.
+        - Serial not known yet (added without data, migrated from 0.5.0): it
+          is learned from the first live telegram, unless that serial is
+          already set up as another entry.
+        Anything else is a foreign device: reported, never taken over.
         """
-        if not isinstance(serial, str) or not serial:
-            return self._blocked_serial is None
         known = self.entry.data.get(CONF_SERIAL)
         if known is not None:
             if serial == known:
-                if not retained:
-                    self._unblock()
                 return True
-            if not retained:
-                other = other_entry_for_serial(self.hass, self.entry, serial)
-                if other is not None:
-                    self._block(serial, ISSUE_DUPLICATE_DEVICE, other=other.title)
-                else:
-                    self._block(serial, ISSUE_OTHER_DEVICE, known=known)
-            return False
-        other = other_entry_for_serial(self.hass, self.entry, serial)
-        if other is not None:
-            if not retained:
-                self._block(serial, ISSUE_DUPLICATE_DEVICE, other=other.title)
-            return False
-        if not retained:
-            self._unblock()
+        elif other_entry_for_serial(self.hass, self.entry, serial) is None:
+            self._forget_foreign(serial)
             if self._on_serial_learned is not None:
                 self._on_serial_learned(serial)
-        return True
-
-    def _ack_is_ours(self, serial: Any) -> bool:
-        """Whether an ack may confirm or reject this device's settings."""
-        if self._blocked_serial is not None:
-            return False
-        if not isinstance(serial, str) or not serial:
             return True
-        known = self.entry.data.get(CONF_SERIAL)
-        if known is not None:
-            return serial == known
-        return other_entry_for_serial(self.hass, self.entry, serial) is None
+        self._foreign_received(serial, payload)
+        return False
 
-    def _block(self, serial: str, issue: str, **placeholders: str) -> None:
-        """Stop using the topic's data: it comes from another device."""
-        if self._blocked_serial != serial:
-            self._blocked_serial = serial
-            _LOGGER.warning(
-                "Topic %s carries data of another device (%s) - ignored, "
-                "%s is unavailable until this is resolved",
-                self.base_topic,
-                serial,
-                self.name,
-            )
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                self._issue_id(issue),
-                is_fixable=issue == ISSUE_OTHER_DEVICE,
-                severity=ir.IssueSeverity.ERROR,
-                translation_key=issue,
-                translation_placeholders={
-                    "name": self.name,
-                    "serial": serial,
-                    **placeholders,
-                },
-                data={"entry_id": self.entry.entry_id, "serial": serial},
-            )
-        self.last_seen = None
-        self._was_available = False
+    def _handle_retained(self, serial: str, payload: dict[str, Any]) -> None:
+        """A telegram replayed by the broker on subscribe (maybe yesterday's).
+
+        Shown only if it is the own device's and the device isn't reporting
+        live: it never makes the device available, books no energy and never
+        overwrites live values. Foreign ones are dropped silently.
+        """
+        known = self.entry.data.get(CONF_SERIAL)
+        if known is None:
+            # Own serial unknown: it may stem from a predecessor on the topic.
+            # Only its time is kept for the outdated-message check.
+            if (
+                not self._retained_checked
+                and other_entry_for_serial(self.hass, self.entry, serial) is None
+            ):
+                self._retained_unix_time = as_number(
+                    payload.get(FIELD_UNIX_TIME), True
+                )
+            return
+        if serial != known or self.available:
+            return
+        cleaned = clean_telegram(payload)
+        self.data.update(cleaned)
+        self.last_telegram_retained = True
         self._last_energy_ts = None
         self._last_power_w = None
-        self._pending.clear()
+        if not self._retained_checked:
+            self._retained_unix_time = cleaned.get(FIELD_UNIX_TIME)
         async_dispatcher_send(self.hass, self.signal)
 
-    def _unblock(self) -> None:
-        if self._blocked_serial is None:
+    def _ack_is_ours(self, serial: str) -> bool:
+        """Whether an ack (valid serial) may confirm or reject our settings.
+
+        Only with the own known serial - also while another device is on the
+        topic. While the own serial is unknown, no ack counts.
+        """
+        known = self.entry.data.get(CONF_SERIAL)
+        return known is not None and serial == known
+
+    def _invalid_serial_received(self) -> None:
+        """A live message without a valid serial: ignored, reported."""
+        if not self._invalid_warned:
+            self._invalid_warned = True
+            _LOGGER.warning(
+                "Topic %s carries messages without a valid serial number - ignored",
+                self.base_topic,
+            )
+        first = self._invalid_last is None
+        self._invalid_last = dt_util.utcnow()
+        if not first:
             return
-        _LOGGER.info("Topic %s carries data of %s again", self.base_topic, self.name)
-        self._blocked_serial = None
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            self._issue_id(ISSUE_INVALID_SERIAL),
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_INVALID_SERIAL,
+            translation_placeholders={"name": self.name},
+        )
+        self._update_no_data_issue()
+
+    # --- foreign devices on the topic ---
+
+    def _foreign_received(self, serial: str, payload: dict[str, Any]) -> None:
+        """A live telegram of another device: remember it, report it."""
+        now = dt_util.utcnow()
+        self._prune_foreign(now)
+        window = self.effective_timeout
+        msi = as_number(payload.get(FIELD_MSI), True)
+        if msi is not None and msi > 0:
+            window = max(
+                window, min(MSI_TIMEOUT_FACTOR * msi, FOREIGN_WINDOW_MAX_SECONDS)
+            )
+        record = self._foreign.get(serial)
+        if record is not None:
+            record.last = now
+            record.count += 1
+            record.window = window
+        else:
+            if len(self._foreign) >= FOREIGN_MAX_DEVICES:
+                del self._foreign[min(self._foreign, key=lambda s: self._foreign[s].last)]
+            self._foreign[serial] = _Foreign(now, now, 1, window)
+            if serial not in self._foreign_warned:
+                if len(self._foreign_warned) >= FOREIGN_MAX_DEVICES:
+                    self._foreign_warned.pop()
+                self._foreign_warned.add(serial)
+                _LOGGER.warning(
+                    "Topic %s carries data of another device (%s) - ignored; "
+                    "if it keeps sending, no settings are sent to the topic "
+                    "except switching off",
+                    self.base_topic,
+                    serial,
+                )
+        self._schedule_save()
+        self._update_foreign_issue()
+        self._update_no_data_issue()
+
+    def _forget_foreign(self, serial: str) -> None:
+        """A serial became the own one (learned or adopted)."""
+        if self._foreign.pop(serial, None) is None:
+            return
+        self._schedule_save()
+        self._update_foreign_issue()
+        self._update_no_data_issue()
+
+    def _prune_foreign(self, now: datetime | None = None) -> None:
+        """Drop foreign devices that have not been seen for their window."""
+        now = now or dt_util.utcnow()
+        expired = [s for s, r in self._foreign.items() if not r.active(now)]
+        if not expired:
+            return
+        for serial in expired:
+            del self._foreign[serial]
+        self._schedule_save()
+        self._update_foreign_issue()
+
+    def _issue_serial(self) -> str | None:
+        """The foreign device present the longest (the one reported)."""
+        if not self._foreign:
+            return None
+        return min(self._foreign, key=lambda s: self._foreign[s].first)
+
+    def _blocking_serial(self) -> str | None:
+        """Foreign device that blocks sending settings, if any.
+
+        Blocked once the foreign devices present sent at least two telegrams
+        in total: a single stray telegram doesn't block.
+        """
+        self._prune_foreign()
+        if sum(r.count for r in self._foreign.values()) < FOREIGN_BLOCK_TELEGRAMS:
+            return None
+        return self._issue_serial()
+
+    def _update_foreign_issue(self, force: bool = False) -> None:
+        """Show the issue matching the foreign device present the longest.
+
+        "Duplicate" if that device is set up as another entry, otherwise
+        "other device" (fixable: adopt it). Re-determined on every foreign
+        telegram, on expiry and on load, so it follows changes of the setup.
+        """
+        serial = self._issue_serial()
+        known = self.entry.data.get(CONF_SERIAL)
+        wanted: tuple[str, str] | None = None
+        placeholders: dict[str, str] = {}
+        if serial is not None:
+            other = other_entry_for_serial(self.hass, self.entry, serial)
+            if other is not None:
+                wanted = (ISSUE_DUPLICATE_DEVICE, serial)
+                placeholders = {"other": other.title}
+            elif known is not None:
+                wanted = (ISSUE_OTHER_DEVICE, serial)
+                placeholders = {"known": known}
+        previous = self._foreign_issue
+        if wanted == previous and not force:
+            return
+        self._foreign_issue = wanted
         for issue in (ISSUE_OTHER_DEVICE, ISSUE_DUPLICATE_DEVICE):
-            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(issue))
+            if wanted is None or issue != wanted[0] or (
+                previous is not None and previous != wanted
+            ):
+                ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(issue))
+        if wanted is None:
+            return
+        if previous is not None and previous[1] == wanted[1] and previous[0] != wanted[0]:
+            _LOGGER.info(
+                "Topic %s: device %s is now reported as %s",
+                self.base_topic,
+                wanted[1],
+                wanted[0],
+            )
+        issue, serial = wanted
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            self._issue_id(issue),
+            is_fixable=issue == ISSUE_OTHER_DEVICE,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=issue,
+            translation_placeholders={"name": self.name, "serial": serial, **placeholders},
+            data={"entry_id": self.entry.entry_id, "serial": serial},
+        )
+
+    def _load_foreign(self, stored: Any) -> None:
+        """Restore the foreign devices of the last run (reload, HA restart).
+
+        Only for the same topic ("Reconfigure" to another topic starts
+        fresh), without the own serial (adopted meanwhile), without expired
+        or unreadable records; timestamps in the future count as now.
+        """
+        devices: Any = None
+        if isinstance(stored, dict) and stored.get("topic") == self.connection.address:
+            devices = stored.get("devices")
+        now = dt_util.utcnow()
+        known = self.entry.data.get(CONF_SERIAL)
+        for serial, record in (devices.items() if isinstance(devices, dict) else ()):
+            if not valid_serial(serial) or serial == known or not isinstance(record, dict):
+                continue
+            first = _parse_time(record.get("first"))
+            last = _parse_time(record.get("last"))
+            count = record.get("count")
+            window = as_number(record.get("window"), False)
+            if (
+                first is None
+                or last is None
+                or not isinstance(count, int)
+                or isinstance(count, bool)
+                or count < 1
+                or window is None
+                or window <= 0
+            ):
+                continue
+            last = min(last, now)
+            foreign = _Foreign(min(first, last), last, count, float(window))
+            if foreign.active(now):
+                self._foreign[serial] = foreign
+        while len(self._foreign) > FOREIGN_MAX_DEVICES:
+            del self._foreign[min(self._foreign, key=lambda s: self._foreign[s].last)]
+        self._update_foreign_issue(force=True)
 
     def _first_data_received(self) -> None:
         if self._no_data_unsub:
             self._no_data_unsub()
             self._no_data_unsub = None
+        self._no_data_shown = False
         ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(ISSUE_NO_DATA))
         if CONF_AWAITING_DATA not in self.entry.data:
             return  # already cleared by the serial adoption
@@ -475,6 +757,10 @@ class NovoltoDevice:
             return
         s_err = str(payload.get(FIELD_S_ERR, ""))
         _LOGGER.warning("Novolto %s rejected a setting: %s", self.base_topic, s_err)
+        if not self._pending:
+            # Nothing of ours is open: maybe a command stored on the control
+            # topic, executed by the device on reconnect.
+            self._schedule_control_check()
         # The ack doesn't say which setting failed: show the device's real
         # values again for everything still open.
         self._pending.clear()
@@ -566,6 +852,71 @@ class NovoltoDevice:
             self.hass, DOMAIN, self._issue_id(ISSUE_STALE_RETAINED)
         )
 
+    @callback
+    def _schedule_control_check(self) -> None:
+        """Look for a retained command on the control topic (one at a time).
+
+        Run at setup, when the device reconnects (back after an outage,
+        restarted), on a rejection nobody here asked for, and while the
+        issue stands (so it goes once the message is deleted).
+        """
+        if self._control_check_running:
+            return
+        self._control_check_running = True
+        self.entry.async_create_background_task(
+            self.hass, self._async_check_control(), f"{DOMAIN}_check_control"
+        )
+
+    async def _async_check_control(self) -> None:
+        try:
+            raw = await self.connection.async_fetch_retained_control()
+        except HomeAssistantError as err:
+            _LOGGER.debug("Control topic of %s not checked: %s", self.base_topic, err)
+            return
+        finally:
+            self._control_check_running = False
+        issue_id = self._issue_id(ISSUE_RETAINED_CONTROL)
+        if raw is None:
+            if self._control_issue:
+                _LOGGER.info("Retained message on the control topic of %s is gone",
+                             self.base_topic)
+            self._control_issue = False
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        if not self._control_issue:
+            _LOGGER.warning(
+                "A retained message lies on the control topic of %s; the device "
+                "executes it on every reconnect: %s",
+                self.base_topic,
+                shorten_payload(raw),
+            )
+        self._control_issue = True
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=ISSUE_RETAINED_CONTROL,
+            translation_placeholders={"name": self.name, "payload": shorten_payload(raw)},
+        )
+
+    def _update_sw_version(self, version: Any) -> None:
+        """Firmware version (sent after a device restart) into the registry."""
+        if (
+            not isinstance(version, str)
+            or not 0 < len(version) <= SERIAL_MAX_LENGTH
+            or version == self._sw_version
+        ):
+            return
+        dev_reg = dr.async_get(self.hass)
+        device = dev_reg.async_get_device(identifiers={(DOMAIN, self.key)})
+        if device is None:
+            return
+        self._sw_version = version
+        if device.sw_version != version:
+            dev_reg.async_update_device(device.id, sw_version=version)
+
     def _update_stb_issue(self, status: Any) -> None:
         if not isinstance(status, int) or status < 0:
             return
@@ -604,30 +955,48 @@ class NovoltoDevice:
             if 0 < elapsed <= self.effective_timeout:
                 avg_w = (self._last_power_w + power_w) / 2
                 self.energy_kwh += avg_w / 1000 * elapsed / 3600
-                # async_delay_save is a debounce (each call restarts the
-                # delay), so only schedule when no write is pending -
-                # otherwise frequent telegrams would postpone it forever.
-                if not self._save_pending:
-                    self._save_pending = True
-                    self.store.async_delay_save(
-                        self._energy_data, ENERGY_SAVE_DELAY_SECONDS
-                    )
+                self._schedule_save()
         self._last_energy_ts = now
         self._last_power_w = power_w
 
+    def _schedule_save(self) -> None:
+        """Write energy counter and foreign devices with a delay.
+
+        async_delay_save is a debounce (each call restarts the delay), so
+        only schedule when no write is pending - otherwise frequent
+        telegrams would postpone it forever.
+        """
+        if not self._save_pending:
+            self._save_pending = True
+            self.store.async_delay_save(self._store_data, ENERGY_SAVE_DELAY_SECONDS)
+
     @callback
-    def _energy_data(self) -> dict[str, float]:
+    def _store_data(self) -> dict[str, Any]:
         """Data written to the Store (evaluated at write time)."""
         self._save_pending = False
-        return {"energy_kwh": self.energy_kwh}
+        return {
+            "energy_kwh": self.energy_kwh,
+            "foreign": {
+                "topic": self.connection.address,
+                "devices": {
+                    serial: {
+                        "first": record.first.isoformat(),
+                        "last": record.last.isoformat(),
+                        "count": record.count,
+                        "window": record.window,
+                    }
+                    for serial, record in self._foreign.items()
+                },
+            },
+        }
 
-    async def async_save_energy(self) -> None:
-        """Persist the accumulated energy value to disk right now."""
-        await self.store.async_save(self._energy_data())
+    async def async_save(self) -> None:
+        """Persist energy counter and foreign devices right now (unload)."""
+        await self.store.async_save(self._store_data())
 
     @callback
     def handle_availability_tick(self, now: datetime) -> None:
-        """Mark the device unavailable once it has gone silent."""
+        """Periodic check: device gone silent, issues that have run out."""
         # Unconfirmed optimistic values don't outlive the timeout.
         for field in list(self._pending):
             if (now - self._pending[field].sent).total_seconds() > self.effective_timeout:
@@ -641,10 +1010,21 @@ class NovoltoDevice:
                 self.effective_timeout,
             )
             self._was_available = False
+            self._check_control_on_return = True
             self._last_energy_ts = None
             self._last_power_w = None
             self._pending.clear()
             async_dispatcher_send(self.hass, self.signal)
+        self._prune_foreign(now)
+        if (
+            self._invalid_last is not None
+            and (now - self._invalid_last).total_seconds() > self.effective_timeout
+        ):
+            self._invalid_last = None
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(ISSUE_INVALID_SERIAL))
+        self._update_no_data_issue()
+        if self._control_issue:
+            self._schedule_control_check()
 
     # --- settings ---
 
@@ -692,6 +1072,15 @@ class NovoltoDevice:
                 translation_key="device_offline",
                 translation_placeholders={"name": self.name},
             )
+        # Another device keeps sending on the topic: it reads the same
+        # control topic. Switching off stays possible (safe for both).
+        switch_off = name == CONTROL_NAME_TARGET_POWER and value == 0
+        if not switch_off and (serial := self._blocking_serial()) is not None:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="foreign_device_on_topic",
+                translation_placeholders={"name": self.name, "serial": serial},
+            )
         field = _SETTING_FIELDS[name]
         # Show the new value right away; the next telegram (or a rejection)
         # replaces it with what the device really uses. Registered before
@@ -723,5 +1112,7 @@ def async_delete_issues(hass: HomeAssistant, entry_id: str) -> None:
         ISSUE_STALE_RETAINED,
         ISSUE_OTHER_DEVICE,
         ISSUE_DUPLICATE_DEVICE,
+        ISSUE_INVALID_SERIAL,
+        ISSUE_RETAINED_CONTROL,
     ):
         ir.async_delete_issue(hass, DOMAIN, f"{issue}_{entry_id}")

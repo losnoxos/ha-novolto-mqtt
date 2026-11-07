@@ -142,7 +142,12 @@ besteht (Normalfall: die Seriennummer). Mehrstufige Topics wie
   Zapfstelle.
 - Eingestellte Werte erscheinen sofort im Regler. Lehnt der Heizstab eine
   Einstellung ab, springt der Regler zurück und unter Einstellungen →
-  Reparaturen erscheint eine Meldung.
+  Reparaturen erscheint eine Meldung. Bestätigt der Heizstab einen Wert
+  nicht (z. B. weil er gerade neu startet), zeigt der Regler spätestens nach
+  dem Verfügbarkeits-Timeout wieder den Wert des Heizstabs. Für
+  Automationen deshalb die gemessene Leistung prüfen, nicht den Regler.
+- Bei mehreren Änderungen kurz hintereinander kann die Anzeige bis zu ein
+  Messintervall einen Zwischenwert zeigen. Der Endwert stimmt.
 
 > [!WARNING]
 > **Ohne Verbindung heizt der Heizstab weiter.** Nach einem Stromausfall
@@ -244,6 +249,64 @@ Jeder Heizstab wird einzeln hinzugefügt und bekommt eigene Entitäten,
 Optionen und einen eigenen Energiezähler. Unterschiedliche Namen vergeben,
 z. B. „Heizstab Keller“ und „Heizstab Garage“.
 
+## Seriennummer und fremde Geräte auf dem Topic
+
+Die Integration erkennt den Heizstab an seiner Seriennummer (Feld `serial`
+in jeder Nachricht), nicht am Topic.
+
+- **Nachrichten ohne gültige Seriennummer** werden ignoriert, es erscheint
+  eine Meldung. Sendet ein Heizstab (z. B. nach einem Firmware-Update) gar
+  keine Seriennummer mehr, bleibt er nicht verfügbar und lässt sich über
+  Home Assistant auch nicht ausschalten. Die Automation „0 W nach HA-Start“
+  wartet dann vergeblich.
+- **Ein anderer Heizstab auf dem Topic:** Seine Werte werden nie
+  übernommen, dein Heizstab läuft normal weiter. Ein einzelnes fremdes
+  Telegramm wird nur gemeldet. Ab dem zweiten schickt die Integration keine
+  Einstellungen mehr an das Topic – beide Heizstäbe lesen dasselbe
+  Steuer-Topic. Nur **Ausschalten (0 W)** bleibt möglich, solange dein
+  Heizstab erreichbar ist; es schaltet dann auch den anderen aus.
+- Die Sperre endet, wenn der andere Heizstab eine Weile nichts mehr gesendet
+  hat (mindestens der Verfügbarkeits-Timeout, bei langem Messintervall des
+  anderen länger, höchstens 15 Minuten). Danach sperrt erst wieder sein
+  zweites Telegramm. Sie übersteht ein Neuladen und einen Neustart von Home
+  Assistant – außer der Neustart dauert länger als diese Zeit.
+- **Heizstab getauscht:** Der alte bleibt bis zum Verfügbarkeits-Timeout
+  mit seinen letzten Werten sichtbar. Sendet er nicht mehr, in der Meldung
+  „anderer Heizstab auf dem Topic“ auf **Beheben** klicken: Der neue
+  übernimmt Gerät, Entitäten und Energiezähler. Solange der alte noch
+  sendet (oder Home Assistant gerade erst gestartet ist), wird das
+  abgelehnt.
+- Ist der andere Heizstab schon als eigenes Gerät eingerichtet, lautet die
+  Meldung „empfängt Daten eines anderen Heizstabs“: Topic korrigieren.
+
+## Gespeicherte Befehle auf dem Steuer-Topic
+
+Liegt auf `<Topic>/control` eine gespeicherte Nachricht (Retain), führt der
+Heizstab sie **bei jedem Neuverbinden erneut aus** – nach jedem Neustart
+und jedem WLAN-Aussetzer. Ein alter Befehl wie „3000 W“ überschreibt so
+immer wieder deine Regelung. Diese Integration sendet nie mit Retain. Sie
+prüft beim Start, nach einem Neustart oder Wiederverbinden des Heizstabs
+und bei unerwarteten Ablehnungen, ob dort etwas liegt, und meldet es.
+
+**Nie mit Retain auf `<Topic>/control` senden** – auch nicht aus eigenen
+Automationen oder Skripten.
+
+So löschst du die gespeicherte Nachricht mit
+[MQTT Explorer](https://mqtt-explorer.com): mit dem Broker verbinden, links
+das Topic `<Topic>/control` auswählen und rechts beim Wert auf das
+Papierkorb-Symbol klicken. Mit `mosquitto_pub` geht es so (Platzhalter
+ersetzen):
+
+```bash
+mosquitto_pub -h <Broker-IP> -u <Benutzer> -P <Passwort> -t '<Topic>/control' -r -n
+```
+
+Das Löschen ist eine leere Nachricht auf dem Steuer-Topic, die auch der
+Heizstab empfängt, wenn er gerade verbunden ist. Wie er darauf reagiert,
+ist noch nicht geprüft. Wer sichergehen will, löscht, während der Heizstab
+nicht verbunden ist (z. B. kurz vom Strom getrennt). Die Meldung in Home
+Assistant verschwindet danach von selbst.
+
 ## Fehlersuche
 
 | Symptom | Ursache | Lösung |
@@ -256,6 +319,10 @@ z. B. „Heizstab Keller“ und „Heizstab Garage“.
 | Integration fehlt in der Auswahl | HA nach HACS-Download nicht neu gestartet | Neustart, Strg+F5 |
 | Meldung „hat eine Einstellung abgelehnt“ | Wert vom Heizstab nicht angenommen | Fehlercode in der Meldung, Wert prüfen |
 | Meldung „veraltete gespeicherte Nachricht auf dem Broker“ | Retain war im Heizstab an und wurde ausgeschaltet; der Broker hält noch die alte Nachricht | In der Meldung auf **Beheben** klicken und bestätigen, die Nachricht wird gelöscht |
+| Meldung „Nachrichten ohne Seriennummer“ | Ein anderes Gerät sendet auf das Topic, oder die Firmware sendet keine Seriennummer | Siehe [Seriennummer und fremde Geräte](#seriennummer-und-fremde-geräte-auf-dem-topic) |
+| Meldung „anderer Heizstab auf dem Topic“ / „empfängt Daten eines anderen Heizstabs“ | Zwei Heizstäbe nutzen dasselbe Topic, oder der Heizstab wurde getauscht | Topic korrigieren bzw. nach einem Tausch übernehmen, siehe [Seriennummer und fremde Geräte](#seriennummer-und-fremde-geräte-auf-dem-topic) |
+| Einstellung wird nicht gesendet: „Auf dem Topic sendet ein anderer Heizstab“ | Sendesperre wegen eines fremden Heizstabs | Wie oben; Ausschalten (0 W) geht weiterhin |
+| Meldung „gespeicherter Befehl auf dem Steuer-Topic“ | Ein Programm hat mit Retain auf `<Topic>/control` gesendet | Nachricht löschen, siehe [Gespeicherte Befehle](#gespeicherte-befehle-auf-dem-steuer-topic), und das Programm umstellen |
 
 Für eine Fehlermeldung bei GitHub: Einstellungen → Geräte & Dienste →
 Novolto MQTT → ⋮ → **Diagnose herunterladen** (die Seriennummer ist darin
@@ -268,7 +335,11 @@ unkenntlich gemacht).
   `sptwh`).
 - Ein Telegramm, das der Broker als „retained“ ausliefert, zeigt die
   letzten Werte, macht den Heizstab aber nicht verfügbar. Das passiert erst
-  mit einer live empfangenen Nachricht.
+  mit einer live empfangenen Nachricht. Meldet der Heizstab gerade live,
+  wird ein retained Telegramm ignoriert.
+- Nach einem Neustart des Heizstabs (erstes Telegramm mit `rst_cause`) wird
+  die Pause nicht als Energie gezählt. Die Firmware-Version aus diesem
+  Telegramm steht in den Geräteinformationen.
 - Der Status-Sensor zeigt die wichtigste aktive Meldung. Alle aktiven
   Meldungen stehen im Attribut `active`, die Bitmaske in `status_raw`.
 - Protokoll-Referenz:

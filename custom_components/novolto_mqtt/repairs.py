@@ -6,12 +6,14 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.components.repairs import RepairsFlow
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import issue_registry as ir
 
 from . import async_adopt_serial
 from .const import DOMAIN, ISSUE_OTHER_DEVICE, ISSUE_STALE_RETAINED
+from .device import other_entry_for_serial
 
 
 class StaleRetainedFlow(RepairsFlow):
@@ -78,8 +80,25 @@ class OtherDeviceFlow(RepairsFlow):
                 if self._entry_id
                 else None
             )
-            if entry is None or not self._serial:
+            device = getattr(entry, "runtime_data", None) if entry else None
+            if (
+                entry is None
+                or not self._serial
+                or entry.state is not ConfigEntryState.LOADED
+                or device is None
+            ):
                 return self.async_abort(reason="device_not_loaded")
+            if other_entry_for_serial(self.hass, entry, self._serial) is not None:
+                return self.async_abort(reason="already_configured")
+            if device.own_device_may_be_active():
+                # Adopting while the old device still sends would make it
+                # the foreign one - or adopt a stray telegram.
+                return self.async_abort(
+                    reason="own_device_active",
+                    description_placeholders={
+                        "seconds": str(round(device.effective_timeout))
+                    },
+                )
             if not async_adopt_serial(self.hass, entry, self._serial):
                 return self.async_abort(reason="already_configured")
             ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)

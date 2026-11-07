@@ -171,6 +171,14 @@ INTEGER_FIELDS = {
 
 FIELD_RET = "ret"
 FIELD_S_ERR = "s_err"
+# Only in the first telegram after a device restart (measured on firmware
+# 1.1.0-rc.1, strings): restart cause and firmware version.
+FIELD_RST_CAUSE = "rst_cause"
+FIELD_VERSION = "version"
+
+# A serial number identifies a device only if it is a string of at most this
+# length, without surrounding spaces and without "/", "+", "#".
+SERIAL_MAX_LENGTH = 64
 
 # Novolto SENSOR module names used on <base_topic>/control - note the quirky,
 # per-field JSON type requirement confirmed against real device acks:
@@ -209,22 +217,38 @@ ISSUE_STB_TRIPPED = "stb_tripped"
 # on the device later), the fix deletes it.
 ISSUE_STALE_RETAINED = "stale_retained"
 # Fixable: the topic carries telegrams of a device with another serial (e.g.
-# the heating rod was replaced). Data is blocked; the fix adopts the new one.
+# the heating rod was replaced). Its data is ignored; the fix adopts it.
 ISSUE_OTHER_DEVICE = "other_device"
 # Not fixable: the topic carries telegrams of a device that is already set up
-# as another entry. Data is blocked until the topic is corrected.
+# as another entry. Its data is ignored until the topic is corrected.
 ISSUE_DUPLICATE_DEVICE = "duplicate_device"
-# How long to wait for the broker to deliver the stored message again.
+# Not fixable: messages without a valid serial number arrive on the topic.
+ISSUE_INVALID_SERIAL = "invalid_serial"
+# Not fixable (yet): a retained message lies on the control topic; the device
+# executes it again on every reconnect.
+ISSUE_RETAINED_CONTROL = "retained_control"
+# How long to wait for the broker to deliver a stored message.
 STORED_MESSAGE_WAIT_SECONDS = 5
+# Retained command shown in the repair issue: at most this many characters.
+RETAINED_CONTROL_MAX_CHARS = 120
+
+# Foreign devices on the topic. A device counts as present for
+# max(timeout, min(3 * its msi, FOREIGN_WINDOW_MAX_SECONDS)) after its last
+# telegram. Settings (except "off") are not sent while the present foreign
+# devices sent FOREIGN_BLOCK_TELEGRAMS telegrams or more.
+FOREIGN_WINDOW_MAX_SECONDS = 900
+FOREIGN_BLOCK_TELEGRAMS = 2
+FOREIGN_MAX_DEVICES = 8
 
 SIGNAL_UPDATE = f"{DOMAIN}_update_{{entry_id}}"
 
-# Persisted energy counter (see NovoltoDevice._update_energy in device.py) -
-# integrated from avp, like dbus-novolto's `integrate` energy_source, instead
-# of the device's own `wel` (which resets to 0 on every Novolto reboot).
+# Persisted per entry: the energy counter (see NovoltoDevice._update_energy
+# in device.py) - integrated from avp, like dbus-novolto's `integrate`
+# energy_source, instead of the device's own `wel` (which resets to 0 on
+# every Novolto reboot) - and the foreign devices seen on the topic.
 STORAGE_VERSION = 1
-# Max delay before a changed energy value is written to disk. Pending writes
-# are also flushed by Home Assistant on shutdown.
+# Max delay before a change is written to disk. Pending writes are also
+# flushed by Home Assistant on shutdown.
 ENERGY_SAVE_DELAY_SECONDS = 300
 
 # Links used in setup messages.

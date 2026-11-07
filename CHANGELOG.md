@@ -6,19 +6,66 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Fixed
-- Device identity is enforced by the serial number. If another heating rod
-  sends on the configured topic, its values, availability and setting
-  acknowledgements are no longer taken over; the device becomes unavailable
-  and no settings are sent until this is resolved.
-- A device added without data that receives telegrams of a heating rod
-  already set up as another device no longer loses its "awaiting data" state
-  and stays blocked instead of showing that rod's values.
+- Device identity is enforced by the serial number. Messages without a valid
+  serial number (missing, empty, not a string, surrounding spaces, "/", "+"
+  or "#") are ignored entirely - telegrams and acknowledgements, live and
+  retained - and reported. **Note:** a firmware that sent no serial number
+  would leave the heating rod unavailable; it could not be switched off via
+  Home Assistant either.
+- Another heating rod on the topic: its values, energy and setting
+  acknowledgements are never taken over, and it no longer makes the own
+  device unavailable. A single foreign telegram is only reported. From the
+  second one on, no settings are sent to the topic, except switching off
+  (0 W) while the own device is available - this switches off the other
+  heating rod as well, as both read the same control topic. The block ends
+  once the foreign device has sent nothing for max(availability timeout,
+  3 × its interval, at most 15 min) and survives a reload or Home Assistant
+  restart (unless the restart takes longer).
+- The foreign-device message follows changes: it switches between "another
+  heating rod" and "receives data of another heating rod" when that rod is
+  set up or removed, and to the next foreign device when the first one stops.
+- Acknowledgements of the own device count right after a foreign telegram.
+  While the own serial number is still unknown, no acknowledgement counts.
+- While the own serial number is still unknown, a stored (retained)
+  telegram is no longer shown - it may stem from the previous device.
+- A retained telegram delivered again while the heating rod reports live no
+  longer overwrites the live values or interrupts the energy counting.
+- Energy is no longer counted across a restart of the heating rod (about
+  100 s without telegrams): its first telegram after the restart starts a new
+  integration.
+- A device added without data that receives telegrams of a heating rod set
+  up as another device keeps its "awaiting data" state; "sends no data"
+  appears once that rod has stopped sending.
 
 ### Added
 - Repair "another heating rod on the topic": after replacing the heating rod,
   confirm to adopt the new one; device, entities and energy counter are kept.
+  Refused while the previous heating rod still sends or Home Assistant has
+  only just started.
 - Repair "receives data of another heating rod" if that rod is already set up
   as another device.
+- Repair "messages without a serial number".
+- Repair "stored command on the control topic": the heating rod executes a
+  retained message on its control topic on every reconnect. Checked at start,
+  when the heating rod restarts or reconnects, on unexpected rejections and
+  while the message stands; it disappears once the message is deleted. The
+  README explains how to delete it. This integration never publishes with
+  retain.
+- Firmware version in the device info (sent by the heating rod after a
+  restart).
+
+### Changed
+- CI: actions/checkout v7 and actions/setup-python v7 (Node 24).
+
+### Known limitations
+- After several setting changes in quick succession the display can show an
+  intermediate value for up to one measurement interval; the final value is
+  correct.
+- A setting is shown at once. If the heating rod doesn't confirm it, the
+  display returns to the heating rod's value after the availability timeout
+  at the latest.
+- Senders without a valid serial number never block sending, they are only
+  reported.
 
 ## [0.6.1] - 2026-10-18
 

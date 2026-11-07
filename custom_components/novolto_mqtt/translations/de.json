@@ -301,6 +301,9 @@
     },
     "mqtt_unavailable": {
       "message": "MQTT-Broker nicht erreichbar, neuer Versuch folgt automatisch."
+    },
+    "foreign_device_on_topic": {
+      "message": "{name}: Auf dem Topic sendet ein anderer Heizstab ({serial}). Einstellungen werden nicht gesendet, bis das geklärt ist. Ausschalten (0 W) bleibt möglich, solange {name} erreichbar ist – es schaltet auch den anderen Heizstab aus."
     }
   },
   "issues": {
@@ -336,18 +339,27 @@
         "step": {
           "confirm": {
             "title": "Neuen Heizstab übernehmen?",
-            "description": "Auf dem Topic von {name} sendet jetzt ein anderer Heizstab (Seriennummer {serial}, bisher {known}). Seine Daten werden nicht übernommen, {name} ist bis dahin nicht verfügbar. Wurde der Heizstab getauscht, hier bestätigen: Der neue Heizstab übernimmt Gerät, Entitäten und Energiezähler. Sonst das MQTT-Topic im Heizstab oder in der Integration („Neu konfigurieren“) korrigieren."
+            "description": "Auf dem Topic von {name} sendet ein anderer Heizstab (Seriennummer {serial}, bisher {known}). Seine Daten werden ignoriert. Sendet er weiter, schickt die Integration keine Einstellungen mehr an das Topic; Ausschalten (0 W) bleibt möglich, solange {name} erreichbar ist, und schaltet auch den anderen Heizstab aus. Wurde der Heizstab getauscht und sendet der alte nicht mehr, hier bestätigen: Der neue Heizstab übernimmt Gerät, Entitäten und Energiezähler. Sonst das MQTT-Topic im Heizstab oder in der Integration („Neu konfigurieren“) korrigieren."
           }
         },
         "abort": {
           "device_not_loaded": "Der Heizstab ist gerade nicht geladen. Bitte später erneut versuchen.",
-          "already_configured": "Dieser Heizstab ist bereits als eigenes Gerät eingerichtet. Topic korrigieren statt übernehmen."
+          "already_configured": "Dieser Heizstab ist bereits als eigenes Gerät eingerichtet. Topic korrigieren statt übernehmen.",
+          "own_device_active": "Der bisherige Heizstab hat in den letzten {seconds} Sekunden noch gesendet, oder Home Assistant läuft noch nicht so lange. Erst übernehmen, wenn er so lange nichts mehr gesendet hat."
         }
       }
     },
     "duplicate_device": {
       "title": "{name} empfängt Daten eines anderen Heizstabs",
-      "description": "Auf dem Topic von {name} sendet der Heizstab {serial}, der bereits als {other} eingerichtet ist. Die Daten werden nicht übernommen, {name} ist nicht verfügbar. Topic korrigieren („Neu konfigurieren“) oder diesen Eintrag löschen."
+      "description": "Auf dem Topic von {name} sendet der Heizstab {serial}, der bereits als {other} eingerichtet ist. Seine Daten werden ignoriert. Sendet er weiter, schickt die Integration keine Einstellungen an das Topic; Ausschalten (0 W) bleibt möglich, solange {name} erreichbar ist, und schaltet auch {other} aus. Topic korrigieren („Neu konfigurieren“) oder diesen Eintrag löschen."
+    },
+    "invalid_serial": {
+      "title": "{name}: Nachrichten ohne Seriennummer",
+      "description": "Auf dem Topic von {name} kommen Nachrichten ohne gültige Seriennummer an. Sie werden ignoriert. Kommen nur solche Nachrichten, bleibt {name} nicht verfügbar und kann auch nicht ausgeschaltet werden. Prüfe, ob ein anderes Gerät auf dieses Topic sendet oder die Firmware des Heizstabs geändert wurde. Die Meldung verschwindet, wenn eine Zeit lang keine solche Nachricht mehr kommt."
+    },
+    "retained_control": {
+      "title": "{name}: gespeicherter Befehl auf dem Steuer-Topic",
+      "description": "Auf dem Steuer-Topic von {name} hat der MQTT-Broker eine Nachricht gespeichert (Retain): `{payload}`. Der Heizstab führt sie bei jedem Neuverbinden erneut aus – nach jedem Neustart oder WLAN-Aussetzer. Diese Integration sendet nie mit Retain; die Nachricht stammt von einem anderen Programm. Lösche sie mit einem MQTT-Werkzeug (Anleitung in der README) und stelle das Programm um. Die Meldung verschwindet von selbst, sobald die Nachricht gelöscht ist."
     }
   }
 }

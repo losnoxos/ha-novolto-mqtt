@@ -13,6 +13,8 @@ from .conftest import CONTROL_TOPIC, FULL_TELEGRAM, eid, fire, setup_entry
 def _published(mqtt_mock) -> tuple[str, str, dict]:
     mqtt_mock.async_publish.assert_called_once()
     topic, payload, qos, retain = mqtt_mock.async_publish.call_args.args
+    # a retained command would be executed again on every reconnect
+    assert retain is False
     return topic, payload, json.loads(payload)
 
 

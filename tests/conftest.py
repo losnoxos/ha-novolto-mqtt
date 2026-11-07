@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -13,6 +14,7 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_mqtt_message,
 )
 
+from custom_components.novolto_mqtt.connection import MqttConnection
 from custom_components.novolto_mqtt.const import (
     CONF_BASE_TOPIC,
     CONF_CONNECTION,
@@ -20,6 +22,12 @@ from custom_components.novolto_mqtt.const import (
     CONNECTION_MQTT,
     DOMAIN,
     default_options,
+)
+
+# The real check for a retained command on the control topic; the autouse
+# fixture below replaces it, tests of the check itself call this one.
+REAL_FETCH_RETAINED_CONTROL = getattr(
+    MqttConnection, "async_fetch_retained_control", None
 )
 
 BASE = "TEST.SERIAL.000001"
@@ -59,6 +67,23 @@ _EXPECTED_WARNING_SNIPPETS = ("We found a custom integration",)
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable loading custom_components in every test."""
     yield
+
+
+@pytest.fixture(autouse=True)
+def no_retained_control():
+    """Nothing retained on the control topic, answered at once.
+
+    The real check subscribes to the control topic and waits up to 5 s; in
+    every test that would leave a waiting task and timer behind. Tests of the
+    check patch it again or call REAL_FETCH_RETAINED_CONTROL.
+    """
+    with patch.object(
+        MqttConnection,
+        "async_fetch_retained_control",
+        AsyncMock(return_value=None),
+        create=True,
+    ) as mock:
+        yield mock
 
 
 @pytest.fixture

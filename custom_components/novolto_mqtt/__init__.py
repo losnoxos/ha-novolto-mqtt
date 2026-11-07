@@ -119,8 +119,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: NovoltoConfigEntry) -> b
     )
 
     store = _store(hass, entry.entry_id)
-    stored_data = await store.async_load()
-    initial_energy_kwh = float((stored_data or {}).get("energy_kwh", 0.0))
+    stored_data = await store.async_load() or {}
+    initial_energy_kwh = float(stored_data.get("energy_kwh", 0.0))
 
     device = NovoltoDevice(
         hass=hass,
@@ -129,13 +129,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: NovoltoConfigEntry) -> b
         store=store,
         energy_kwh=initial_energy_kwh,
         on_serial_learned=lambda serial: async_adopt_serial(hass, entry, serial),
+        stored_foreign=stored_data.get("foreign"),
     )
     entry.runtime_data = device
     loaded_options = dict(entry.options)
 
-    # Unload callbacks run in reverse order of registration: the final energy
-    # save is registered first so it runs last, after MQTT and timer are gone.
-    entry.async_on_unload(device.async_save_energy)
+    # Unload callbacks run in reverse order of registration: the final save
+    # is registered first so it runs last, after MQTT and timer are gone.
+    entry.async_on_unload(device.async_save)
     entry.async_on_unload(await device.async_start())
     entry.async_on_unload(
         async_track_time_interval(

@@ -301,6 +301,9 @@
     },
     "mqtt_unavailable": {
       "message": "MQTT broker not reachable, retrying automatically."
+    },
+    "foreign_device_on_topic": {
+      "message": "{name}: another heating rod sends on the topic ({serial}). Settings are not sent until this is resolved. Switching off (0 W) remains possible while {name} is reachable - it switches off the other heating rod as well."
     }
   },
   "issues": {
@@ -336,18 +339,27 @@
         "step": {
           "confirm": {
             "title": "Adopt the new heating rod?",
-            "description": "Another heating rod now sends on the topic of {name} (serial number {serial}, previously {known}). Its data is not used, {name} is unavailable until then. If the heating rod was replaced, confirm here: the new heating rod takes over device, entities and energy counter. Otherwise correct the MQTT topic in the heating rod or in the integration (\"Reconfigure\")."
+            "description": "Another heating rod sends on the topic of {name} (serial number {serial}, previously {known}). Its data is ignored. If it keeps sending, the integration sends no more settings to the topic; switching off (0 W) remains possible while {name} is reachable and switches off the other heating rod as well. If the heating rod was replaced and the old one no longer sends, confirm here: the new heating rod takes over device, entities and energy counter. Otherwise correct the MQTT topic in the heating rod or in the integration (\"Reconfigure\")."
           }
         },
         "abort": {
           "device_not_loaded": "The heating rod is not loaded right now. Try again later.",
-          "already_configured": "This heating rod is already set up as a separate device. Correct the topic instead of adopting it."
+          "already_configured": "This heating rod is already set up as a separate device. Correct the topic instead of adopting it.",
+          "own_device_active": "The previous heating rod sent within the last {seconds} seconds, or Home Assistant has not been running that long. Adopt only once it has sent nothing for that long."
         }
       }
     },
     "duplicate_device": {
       "title": "{name} receives data of another heating rod",
-      "description": "The heating rod {serial}, which is already set up as {other}, sends on the topic of {name}. Its data is not used, {name} is unavailable. Correct the topic (\"Reconfigure\") or delete this entry."
+      "description": "The heating rod {serial}, which is already set up as {other}, sends on the topic of {name}. Its data is ignored. If it keeps sending, the integration sends no settings to the topic; switching off (0 W) remains possible while {name} is reachable and switches off {other} as well. Correct the topic (\"Reconfigure\") or delete this entry."
+    },
+    "invalid_serial": {
+      "title": "{name}: messages without a serial number",
+      "description": "Messages without a valid serial number arrive on the topic of {name}. They are ignored. If only such messages arrive, {name} stays unavailable and cannot be switched off either. Check whether another device sends to this topic or the firmware of the heating rod has changed. The issue disappears once no such message has arrived for a while."
+    },
+    "retained_control": {
+      "title": "{name}: stored command on the control topic",
+      "description": "The MQTT broker has stored (retained) a message on the control topic of {name}: `{payload}`. The heating rod executes it again on every reconnect - after every restart or WiFi dropout. This integration never publishes with retain; the message comes from another program. Delete it with an MQTT tool (instructions in the README) and change that program. The issue disappears by itself once the message is deleted."
     }
   }
 }
