@@ -19,6 +19,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.util import dt as dt_util
 
@@ -417,6 +418,7 @@ async def test_n9_adopt_after_old_device_silent(
     hass: HomeAssistant, mqtt_mock, freezer: FrozenDateTimeFactory
 ) -> None:
     entry = await start(hass)
+    power = eid(hass, "number", "target_power")
     for _ in range(5):  # 150 s: A gone
         await tick(hass, freezer, 30)
     await send(hass, foreign())
@@ -424,10 +426,18 @@ async def test_n9_adopt_after_old_device_silent(
     result = await confirm_fix_flow(hass, ENTRY_ID)
     assert result["type"] == "create_entry"
     assert entry.data[CONF_SERIAL] == OTHER
+    # Adoption re-keys the unique_ids to the new serial; the entity_id stays.
+    assert er.async_get(hass).async_get(power).unique_id == f"{OTHER}_target_power"
     await send(hass, foreign(avp=777))
     assert entry.runtime_data.available
     assert hass.states.get("sensor.novolto_test_power").state == "777"
-    await assert_send_allowed(hass, mqtt_mock)
+    mqtt_mock.async_publish.reset_mock()
+    await hass.services.async_call(
+        "number", "set_value", {"entity_id": power, "value": 500}, blocking=True
+    )
+    assert published(mqtt_mock) == [
+        (CONTROL_TOPIC, {"sensor": [{"name": "spp", "value": 500}]})
+    ]
 
 
 async def test_n10_issue_kind_follows_setup(hass: HomeAssistant, mqtt_mock) -> None:
