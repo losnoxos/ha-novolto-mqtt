@@ -1,13 +1,37 @@
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
+# Safety net only: real configuration, keys and runtime data live outside
+# the repository. What may be committed is checked by the pre-commit hook.
 
-# Python
-__pycache__/
-*.pyc
+# Credentials and real configuration (only *.example is versioned)
+config.ini
+mqtt.ini
+tunnel.ini
+secrets.yaml
+*.pem
+*.key
+*.knxkeys
+*.knxproj
+*.knxprod
+
+# Third-party code fetched by install.sh or for tests
+ext/
+
+# Runtime and test data
+energy.json
+_work/
+*.log
+*.bak
+*~
+
+# Python and tools
 .venv/
 venv/
 *.egg-info/
+__pycache__/
+*.pyc
 .pytest_cache/
 .ruff_cache/
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
